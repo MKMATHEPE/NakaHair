@@ -4906,7 +4906,7 @@
               password,
             });
 
-       if (error) {
+   if (error) {
   console.error("Supabase login error:", error);
 
   if (error.code === "email_not_confirmed") {
@@ -4938,8 +4938,6 @@
           errorEl.style.display = "block";
         }
       }
-
-      
       function openRegisterModal(e) {
         if (e) e.preventDefault();
         closeLoginModal();
