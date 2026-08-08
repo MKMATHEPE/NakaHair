@@ -2527,6 +2527,18 @@
         }
       }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+      const SUPABASE_URL = "https://kpwucuwnbkpeqwulqqfs.supabase.co";
+      const SUPABASE_PUBLISHABLE_KEY =
+        "sb_publishable__NGO89yfw2HbQGAJS2SLuA_m-5k3hs3";
+
+      window.supabaseClient = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY,
+      );
+    </script>
   </head>
   <body>
     <!-- NAV -->
@@ -4950,33 +4962,90 @@
       }
 
       async function submitRegister() {
-        const body = {
-          firstName: document
-            .getElementById("register-first-name")
-            .value.trim(),
-          lastName: document.getElementById("register-last-name").value.trim(),
-          email: document.getElementById("register-email").value.trim(),
-          phone: document.getElementById("register-phone").value.trim(),
-          password: document.getElementById("register-password").value,
-          confirmPassword: document.getElementById("register-confirm-password")
-            .value,
-        };
-        const errEl = document.getElementById("register-error");
-        errEl.style.display = "none";
+        const firstName = document
+          .getElementById("register-first-name")
+          .value.trim();
+
+        const lastName = document
+          .getElementById("register-last-name")
+          .value.trim();
+
+        const email = document
+          .getElementById("register-email")
+          .value.trim()
+          .toLowerCase();
+
+        const phone = document.getElementById("register-phone").value.trim();
+
+        const password = document.getElementById("register-password").value;
+
+        const confirmPassword = document.getElementById(
+          "register-confirm-password",
+        ).value;
+
+        const errorEl = document.getElementById("register-error");
+
+        errorEl.className = "modal-error";
+        errorEl.style.display = "none";
+        errorEl.textContent = "";
+
+        if (
+          !firstName ||
+          !lastName ||
+          !email ||
+          !phone ||
+          !password ||
+          !confirmPassword
+        ) {
+          errorEl.textContent = "Please complete all fields.";
+          errorEl.style.display = "block";
+          return;
+        }
+
+        if (password.length < 6) {
+          errorEl.textContent = "Password must be at least 6 characters.";
+          errorEl.style.display = "block";
+          return;
+        }
+
+        if (password !== confirmPassword) {
+          errorEl.textContent = "Passwords do not match.";
+          errorEl.style.display = "block";
+          return;
+        }
+
         try {
-          const res = await fetch("/api/auth/register", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
+          const { data, error } = await window.supabaseClient.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                first_name: firstName,
+                last_name: lastName,
+                phone: phone,
+              },
+            },
           });
-          const data = await res.json();
-          if (!res.ok)
-            throw new Error(data.error || "Unable to create account.");
-          setCustomerSession(data);
+
+          if (error) throw error;
+
+          if (data.user && !data.session) {
+            errorEl.className = "modal-success";
+            errorEl.textContent =
+              "Account created. Please check your email to confirm your account before signing in.";
+            errorEl.style.display = "block";
+            return;
+          }
+
           closeRegisterModal();
-        } catch (e) {
-          errEl.textContent = e.message;
-          errEl.style.display = "block";
+        } catch (error) {
+          console.error("Registration error:", error);
+
+          errorEl.className = "modal-error";
+          errorEl.textContent =
+            error.message || "Unable to create your account. Please try again.";
+
+          errorEl.style.display = "block";
         }
       }
       function setCustomerSession(data) {
