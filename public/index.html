@@ -723,6 +723,23 @@
         margin-top: 14px;
         display: none;
       }
+      .register-success {
+        display: none;
+        text-align: center;
+        padding: 8px 0 4px;
+      }
+
+      .register-success-message {
+        color: #287a4b;
+        font-size: 13px;
+        line-height: 1.7;
+        margin-bottom: 20px;
+      }
+
+      .register-success .btn {
+        width: 100%;
+        text-align: center;
+      }
       .modal-actions {
         margin-top: 6px;
       }
@@ -2862,40 +2879,67 @@
           Create an account for faster checkout and order tracking.
         </p>
         <div class="modal-error" id="register-error"></div>
-        <div class="modal-field">
-          <label>First Name</label
-          ><input id="register-first-name" autocomplete="given-name" />
+
+        <div class="register-success" id="register-success">
+          <p class="register-success-message">
+            Account created. Please check your email to confirm your account
+            before signing in.
+          </p>
+
+          <button
+            type="button"
+            class="btn"
+            onclick="continueShoppingAfterRegister()"
+          >
+            Continue Shopping
+          </button>
         </div>
-        <div class="modal-field">
-          <label>Last Name</label
-          ><input id="register-last-name" autocomplete="family-name" />
-        </div>
-        <div class="modal-field">
-          <label>Email</label
-          ><input type="email" id="register-email" autocomplete="email" />
-        </div>
-        <div class="modal-field">
-          <label>Phone Number</label
-          ><input type="tel" id="register-phone" autocomplete="tel" />
-        </div>
-        <div class="modal-field">
-          <label>Password</label
-          ><input
-            type="password"
-            id="register-password"
-            autocomplete="new-password"
-          />
-        </div>
-        <div class="modal-field">
-          <label>Confirm Password</label
-          ><input
-            type="password"
-            id="register-confirm-password"
-            autocomplete="new-password"
-          />
-        </div>
-        <div class="modal-actions">
-          <button class="btn" onclick="submitRegister()">Create Account</button>
+
+        <div id="register-form-fields">
+          <div class="modal-field">
+            <label>First Name</label>
+            <input id="register-first-name" autocomplete="given-name" />
+          </div>
+
+          <div class="modal-field">
+            <label>Last Name</label>
+            <input id="register-last-name" autocomplete="family-name" />
+          </div>
+
+          <div class="modal-field">
+            <label>Email</label>
+            <input type="email" id="register-email" autocomplete="email" />
+          </div>
+
+          <div class="modal-field">
+            <label>Phone Number</label>
+            <input type="tel" id="register-phone" autocomplete="tel" />
+          </div>
+
+          <div class="modal-field">
+            <label>Password</label>
+            <input
+              type="password"
+              id="register-password"
+              autocomplete="new-password"
+            />
+          </div>
+
+          <div class="modal-field">
+            <label>Confirm Password</label>
+            <input
+              type="password"
+              id="register-confirm-password"
+              autocomplete="new-password"
+            />
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn" onclick="submitRegister()">
+              Create Account
+            </button>
+          </div>
+          </div>
         </div>
       </div>
     </div>
@@ -5081,12 +5125,54 @@
             throw error;
           }
 
-          if (data.user && !data.session) {
-            errorEl.className = "modal-success";
-            errorEl.textContent =
-              "Account created. Please check your email to confirm your account before signing in.";
-            errorEl.style.display = "block";
+          if (data.user) {
+            const registerFormFields = document.getElementById(
+              "register-form-fields",
+            );
+
+            const registerSuccess = document.getElementById("register-success");
+
+            const registerError = document.getElementById("register-error");
+
+            if (registerFormFields) {
+              registerFormFields.style.display = "none";
+            }
+
+            if (registerError) {
+              registerError.textContent = "";
+              registerError.style.display = "none";
+            }
+
+            if (registerSuccess) {
+              registerSuccess.style.display = "block";
+            }
+
             return;
+          }
+
+          function continueShoppingAfterRegister() {
+            closeRegisterModal();
+
+            const registerFormFields = document.getElementById(
+              "register-form-fields",
+            );
+
+            const registerSuccess = document.getElementById("register-success");
+
+            const registerError = document.getElementById("register-error");
+
+            if (registerFormFields) {
+              registerFormFields.style.display = "";
+            }
+
+            if (registerSuccess) {
+              registerSuccess.style.display = "none";
+            }
+
+            if (registerError) {
+              registerError.textContent = "";
+              registerError.style.display = "none";
+            }
           }
 
           closeRegisterModal();
