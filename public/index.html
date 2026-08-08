@@ -5002,6 +5002,14 @@
           return;
         }
 
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailPattern.test(email)) {
+          errorEl.textContent = "Please enter a valid email address.";
+          errorEl.style.display = "block";
+          return;
+        }
+
         if (password.length < 6) {
           errorEl.textContent = "Password must be at least 6 characters.";
           errorEl.style.display = "block";
@@ -5027,7 +5035,9 @@
             },
           });
 
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
 
           if (data.user && !data.session) {
             errorEl.className = "modal-success";
@@ -5039,7 +5049,7 @@
 
           closeRegisterModal();
         } catch (error) {
-          console.error("Registration error:", error);
+          console.error("Supabase registration error:", error);
 
           errorEl.className = "modal-error";
           errorEl.textContent =
