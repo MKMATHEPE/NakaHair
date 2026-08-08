@@ -5150,30 +5150,7 @@
             return;
           }
 
-          function continueShoppingAfterRegister() {
-            closeRegisterModal();
 
-            const registerFormFields = document.getElementById(
-              "register-form-fields",
-            );
-
-            const registerSuccess = document.getElementById("register-success");
-
-            const registerError = document.getElementById("register-error");
-
-            if (registerFormFields) {
-              registerFormFields.style.display = "";
-            }
-
-            if (registerSuccess) {
-              registerSuccess.style.display = "none";
-            }
-
-            if (registerError) {
-              registerError.textContent = "";
-              registerError.style.display = "none";
-            }
-          }
 
           closeRegisterModal();
         } catch (error) {
@@ -5186,6 +5163,31 @@
           errorEl.style.display = "block";
         }
       }
+
+function continueShoppingAfterRegister() {
+  closeRegisterModal();
+
+  const registerFormFields = document.getElementById(
+    "register-form-fields",
+  );
+
+  const registerSuccess = document.getElementById("register-success");
+  const registerError = document.getElementById("register-error");
+
+  if (registerFormFields) {
+    registerFormFields.style.display = "";
+  }
+
+  if (registerSuccess) {
+    registerSuccess.style.display = "none";
+  }
+
+  if (registerError) {
+    registerError.textContent = "";
+    registerError.style.display = "none";
+  }
+}
+
       function setCustomerSession(data) {
         authToken = data.token;
         currentUser = data.user;
