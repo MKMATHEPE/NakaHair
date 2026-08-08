@@ -4876,66 +4876,49 @@
         }
       }
 
-async function submitLogin() {
-  const emailInput = document.getElementById("login-username");
-  const passwordInput = document.getElementById("login-password");
-  const errorEl = document.getElementById("login-error");
+      async function submitLogin() {
+        const emailInput = document.getElementById("login-username");
+        const passwordInput = document.getElementById("login-password");
+        const errorEl = document.getElementById("login-error");
 
-  const email = emailInput.value.trim().toLowerCase();
-  const password = passwordInput.value;
+        const email = emailInput.value.trim().toLowerCase();
+        const password = passwordInput.value;
 
-  errorEl.style.display = "none";
-  errorEl.textContent = "";
+        errorEl.style.display = "none";
+        errorEl.textContent = "";
 
-  if (!email || !email.includes("@")) {
-    errorEl.textContent = "Please enter a valid email address.";
-    errorEl.style.display = "block";
-    return;
-  }
+        if (!email || !email.includes("@")) {
+          errorEl.textContent = "Please enter a valid email address.";
+          errorEl.style.display = "block";
+          return;
+        }
 
-  if (!password) {
-    errorEl.textContent = "Please enter your password.";
-    errorEl.style.display = "block";
-    return;
-  }
+        if (!password) {
+          errorEl.textContent = "Please enter your password.";
+          errorEl.style.display = "block";
+          return;
+        }
 
-  try {
-    const { data, error } =
-      await window.supabaseClient.auth.signInWithPassword({
-        email,
-        password,
-      });
+        try {
+          const { data, error } =
+            await window.supabaseClient.auth.signInWithPassword({
+              email,
+              password,
+            });
 
-  if (error) {
-    console.error("Supabase login error:", error);
+       if (error) {
+  console.error("Supabase login error:", error);
 
-    if (error.code === "email_not_confirmed") {
-      errorEl.textContent =
-        "Please check your email and confirm your account before signing in.";
-    } else {
-      errorEl.textContent =
-        error.message || "Invalid login credentials";
-    }
-
-    errorEl.style.display = "block";
-    return;
-  }
-
-    console.log("Login successful:", data);
-
-    closeLoginModal();
-
-    if (typeof refreshAuthUI === "function") {
-      await refreshAuthUI();
-    }
-  } catch (err) {
-    console.error("Login exception:", err);
-
+  if (error.code === "email_not_confirmed") {
     errorEl.textContent =
-      err?.message || "Unable to sign in. Please try again.";
-
-    errorEl.style.display = "block";
+      "Please check your email and confirm your account before signing in.";
+  } else {
+    errorEl.textContent =
+      error.message || "Invalid login credentials";
   }
+
+  errorEl.style.display = "block";
+  return;
 }
 
           console.log("Login successful:", data);
@@ -4956,7 +4939,7 @@ async function submitLogin() {
         }
       }
 
-
+      
       function openRegisterModal(e) {
         if (e) e.preventDefault();
         closeLoginModal();
