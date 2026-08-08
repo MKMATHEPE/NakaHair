@@ -4906,13 +4906,20 @@
               password,
             });
 
-          if (error) {
-            console.error("Supabase login error:", error);
+       if (error) {
+  console.error("Supabase login error:", error);
 
-            errorEl.textContent = error.message;
-            errorEl.style.display = "block";
-            return;
-          }
+  if (error.code === "email_not_confirmed") {
+    errorEl.textContent =
+      "Please check your email and confirm your account before signing in.";
+  } else {
+    errorEl.textContent =
+      error.message || "Invalid login credentials";
+  }
+
+  errorEl.style.display = "block";
+  return;
+}
 
           console.log("Login successful:", data);
 
