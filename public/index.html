@@ -5116,17 +5116,18 @@
         }
 
         try {
-          const { data, error } = await window.supabaseClient.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                first_name: firstName,
-                last_name: lastName,
-                phone: phone,
-              },
-            },
-          });
+    const { data, error } = await window.supabaseClient.auth.signUp({
+  email,
+  password,
+  options: {
+    emailRedirectTo: window.location.origin,
+    data: {
+      first_name: firstName,
+      last_name: lastName,
+      phone: phone,
+    },
+  },
+});
 
           if (error) {
             throw error;
