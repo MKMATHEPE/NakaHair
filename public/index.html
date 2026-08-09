@@ -5194,7 +5194,78 @@ function continueShoppingAfterRegister() {
     registerError.textContent = "";
     registerError.style.display = "none";
   }
+  async function refreshAuthUI() {
+  const {
+    data: { user },
+  } = await window.supabaseClient.auth.getUser();
+
+  if (!user) {
+    authToken = null;
+    currentUser = null;
+    currentUserRole = null;
+    currentUserName = null;
+    updateUserUI();
+    return;
+  }
+
+  currentUser = {
+    id: user.id,
+    email: user.email,
+    firstName: user.user_metadata?.first_name || "",
+    lastName: user.user_metadata?.last_name || "",
+    phone: user.user_metadata?.phone || "",
+    role: "customer",
+  };
+
+  currentUserRole = "customer";
+  currentUserName = currentUser.firstName || user.email;
+
+  updateUserUI();
 }
+}
+
+async function refreshAuthUI() {
+  const {
+    data: { user },
+  } = await window.supabaseClient.auth.getUser();
+
+  if (!user) {
+    authToken = null;
+    currentUser = null;
+    currentUserRole = null;
+    currentUserName = null;
+    updateUserUI();
+    return;
+  }
+
+  currentUser = {
+    id: user.id,
+    email: user.email,
+    firstName: user.user_metadata?.first_name || "",
+    lastName: user.user_metadata?.last_name || "",
+    phone: user.user_metadata?.phone || "",
+    role: "customer",
+  };
+
+  currentUserRole = "customer";
+  currentUserName = currentUser.firstName || user.email;
+
+  updateUserUI();
+}
+
+window.supabaseClient.auth.onAuthStateChange(async (event) => {
+  if (event === "SIGNED_IN") {
+    await refreshAuthUI();
+  }
+
+  if (event === "SIGNED_OUT") {
+    authToken = null;
+    currentUser = null;
+    currentUserRole = null;
+    currentUserName = null;
+    updateUserUI();
+  }
+});
 
       function setCustomerSession(data) {
         authToken = data.token;
