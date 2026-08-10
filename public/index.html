@@ -5276,13 +5276,49 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         safeLocalStorageSet("NAKA_user_role", currentUserRole);
         updateUserUI();
       }
-      function forgotPassword(e) {
-        if (e) e.preventDefault();
-        const err = document.getElementById("login-error");
-        err.textContent =
-          "Password reset will be available soon. Please contact NAKA Hair support.";
-        err.style.display = "block";
-      }
+  async function forgotPassword(e) {
+  if (e) e.preventDefault();
+
+  const emailInput = document.getElementById("login-username");
+  const errorEl = document.getElementById("login-error");
+
+  const email = emailInput.value.trim().toLowerCase();
+
+  errorEl.className = "modal-error";
+  errorEl.style.display = "none";
+  errorEl.textContent = "";
+
+  if (!email || !email.includes("@")) {
+    errorEl.textContent =
+      "Enter your email address above first, then click Forgot password.";
+    errorEl.style.display = "block";
+    emailInput.focus();
+    return;
+  }
+
+  try {
+    const { error } =
+      await window.supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: "https://naka-hair.vercel.app/",
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    errorEl.className = "modal-success";
+    errorEl.textContent =
+      "Password reset email sent. Check your inbox and follow the link to create a new password.";
+    errorEl.style.display = "block";
+  } catch (error) {
+    console.error("Password reset error:", error);
+
+    errorEl.className = "modal-error";
+    errorEl.textContent =
+      error.message || "Unable to send password reset email. Please try again.";
+    errorEl.style.display = "block";
+  }
+}
 
       function logout() {
         if (authToken && currentUserRole === "customer")
