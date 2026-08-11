@@ -70,10 +70,25 @@ module.exports = async function handler(request, response) {
     if (!emailResponse.ok) {
       const errorBody = await emailResponse.text();
       console.error("Supabase vendor-link email failed:", emailResponse.status, errorBody);
+
+      // Supabase's built-in email sender has a strict project-wide rate limit.
+      // The caller's identity was already verified from their access token
+      // above, so a rate-limited user can safely continue in this session.
+      if (emailResponse.status === 429) {
+        return json(response, 200, {
+          canContinue: true,
+          emailSent: false,
+          message:
+            "Email sending is temporarily limited. Your account is verified, so you can continue the vendor application below.",
+        });
+      }
+
       return json(response, 502, { error: "Unable to send the application link right now." });
     }
 
     return json(response, 200, {
+      canContinue: false,
+      emailSent: true,
       message: "Application link sent. Check your email.",
     });
   } catch (error) {

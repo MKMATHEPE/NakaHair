@@ -5574,6 +5574,10 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           const data = await res.json().catch(() => ({}));
           message.className = res.ok ? "modal-success" : "modal-error";
           message.textContent = data.message || data.error || "Unable to send the vendor application link.";
+          if (res.ok && data.canContinue) {
+            const form = document.getElementById("vendor-application-form");
+            if (form) form.style.display = "block";
+          }
         } catch (error) {
           message.className = "modal-error";
           message.textContent = error.message || "Unable to send the vendor application link.";
