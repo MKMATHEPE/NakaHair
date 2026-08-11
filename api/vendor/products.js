@@ -6,7 +6,7 @@ const {
   supabaseRest,
 } = require("../../lib/supabase-server");
 
-const allowedCollections = ["everyday", "straight", "bundles", "wigs"];
+const allowedCollections = ["everyday", "signature", "luxe"];
 
 const normalizeStringArray = (value, label) => {
   if (!Array.isArray(value) || value.length > 20) throw new Error(`${label} are invalid.`);
