@@ -5812,13 +5812,12 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           currentUserRole === "customer" ? "inline-flex" : "none";
         adminLogout.style.display = isAdmin() ? "inline-block" : "none";
         dashboardButton.style.display = isAdmin() ? "inline-block" : "none";
+        roleBadge.style.display = isAdmin() ? "inline-block" : "none";
         document.getElementById("customer-greeting").textContent =
           currentUserRole === "customer"
             ? "Hi, " + (currentUserName || "there")
             : "";
-        roleBadge.textContent = hasSession
-          ? currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)
-          : "";
+        roleBadge.textContent = isAdmin() ? "Admin" : "";
 
         const editTrigger = document.getElementById("admin-edit-trigger");
         editTrigger.style.display =
