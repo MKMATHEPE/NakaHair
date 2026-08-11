@@ -1,6 +1,37 @@
-const { getApprovedVendor, json, supabaseRest } = require("../../lib/supabase-server");
+const {
+  getApprovedVendor,
+  getConfig,
+  json,
+  serviceHeaders,
+  supabaseRest,
+} = require("../../lib/supabase-server");
 
 const allowedCollections = ["everyday", "straight", "bundles", "wigs"];
+
+const normalizeStringArray = (value, label) => {
+  if (!Array.isArray(value) || value.length > 20) throw new Error(`${label} are invalid.`);
+  const values = value.map((item) => String(item || "").trim());
+  if (values.some((item) => !item || item.length > 80)) throw new Error(`${label} are invalid.`);
+  return [...new Set(values)];
+};
+
+const normalizeDetails = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Product details are invalid.");
+  }
+  const entries = Object.entries(value);
+  if (entries.length > 20) throw new Error("Too many product details.");
+  const details = {};
+  for (const [rawKey, rawValue] of entries) {
+    const key = String(rawKey || "").trim();
+    const detailValue = String(rawValue || "").trim();
+    if (["__proto__", "prototype", "constructor"].includes(key.toLowerCase()) || !key || key.length > 50 || !detailValue || detailValue.length > 200) {
+      throw new Error("Product details are invalid.");
+    }
+    details[key] = detailValue;
+  }
+  return details;
+};
 
 const normalizeProduct = (body, partial = false) => {
   const source = body || {};
@@ -55,6 +86,18 @@ const normalizeProduct = (body, partial = false) => {
     product.status = status;
   }
 
+  if (!partial || source.sizes !== undefined) {
+    product.sizes = normalizeStringArray(source.sizes || [], "Sizes");
+  }
+
+  if (!partial || source.hairOrigins !== undefined) {
+    product.hairOrigins = normalizeStringArray(source.hairOrigins || [], "Hair origins");
+  }
+
+  if (!partial || source.details !== undefined) {
+    product.details = normalizeDetails(source.details || {});
+  }
+
   if (!partial && (!product.name || !product.hairType || !product.productType || !product.description)) {
     throw new Error("Name, hair type, product type, and description are required.");
   }
@@ -77,6 +120,9 @@ const toRow = (product) => {
     imageUrl: "image_url",
     stockQuantity: "stock_quantity",
     status: "status",
+    sizes: "sizes",
+    hairOrigins: "hair_origins",
+    details: "details",
   };
   for (const [source, target] of Object.entries(mappings)) {
     if (product[source] !== undefined) row[target] = product[source] || null;
@@ -148,6 +194,20 @@ module.exports = async function handler(request, response) {
       if (!result.ok) return json(response, 502, { error: "Unable to delete the product." });
       const rows = await result.json();
       if (!rows[0]) return json(response, 404, { error: "Product not found." });
+      const marker = "/storage/v1/object/public/vendor-products/";
+      const imageUrl = String(rows[0].image_url || "");
+      const markerIndex = imageUrl.indexOf(marker);
+      if (markerIndex !== -1) {
+        const { url, key } = getConfig();
+        let objectPath = "";
+        try { objectPath = decodeURIComponent(imageUrl.slice(markerIndex + marker.length)); } catch {}
+        if (objectPath) {
+          fetch(`${url}/storage/v1/object/vendor-products/${objectPath}`, {
+            method: "DELETE",
+            headers: serviceHeaders(key),
+          }).catch((error) => console.error("Unable to remove deleted vendor image:", error));
+        }
+      }
       return json(response, 200, { deleted: true });
     }
 

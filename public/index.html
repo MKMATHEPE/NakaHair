@@ -3222,7 +3222,7 @@
                     class="admin-edit-trigger"
                     id="admin-edit-trigger"
                     type="button"
-                    onclick="openAdminEditor()"
+                    onclick="openProductEditor()"
                   >
                     Edit product
                   </button>
@@ -4914,6 +4914,10 @@
       let loginMode = "customer";
       let currentPortal = "customer";
       let vendorProductsCache = [];
+      let vendorSelectedHairOrigins = [];
+      let vendorSelectedSizes = [];
+      let vendorSelectedDetails = {};
+      let pendingVendorImageFile = null;
 
       function safeLocalStorageGet(key) {
         try {
@@ -5729,7 +5733,142 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
       }
 
       function vendorProductFormMarkup() {
-        return '<form id="vendor-product-form" class="form-grid" onsubmit="saveVendorProduct(event)"><input type="hidden" id="vendor-product-id"><div class="form-field"><label class="field-label">Product Name *</label><input class="field-input" id="vendor-product-name" maxlength="160" required></div><div class="form-field"><label class="field-label">Product Type *</label><input class="field-input" id="vendor-product-type" maxlength="100" placeholder="Wig, bundle, closure…" required></div><div class="form-field"><label class="field-label">Hair Type *</label><input class="field-input" id="vendor-product-hair-type" maxlength="100" placeholder="Straight, curly, body wave…" required></div><div class="form-field"><label class="field-label">Collection *</label><select class="field-input" id="vendor-product-collection" required><option value="everyday">Everyday</option><option value="straight">Straight Hair</option><option value="bundles">Bundles</option><option value="wigs">Wigs</option></select></div><div class="form-field"><label class="field-label">Price (R) *</label><input class="field-input" id="vendor-product-price" type="number" min="0" step="0.01" required></div><div class="form-field"><label class="field-label">Old Price (R)</label><input class="field-input" id="vendor-product-old-price" type="number" min="0" step="0.01"></div><div class="form-field"><label class="field-label">Stock Quantity *</label><input class="field-input" id="vendor-product-stock" type="number" min="0" step="1" value="0" required></div><div class="form-field"><label class="field-label">Visibility *</label><select class="field-input" id="vendor-product-status" required><option value="draft">Draft</option><option value="active">Active in Store</option></select></div><div class="form-field"><label class="field-label">Tag</label><input class="field-input" id="vendor-product-tag" maxlength="50" placeholder="New, Sale…"></div><div class="form-field"><label class="field-label">Image URL</label><input class="field-input" id="vendor-product-image" type="url" maxlength="500" placeholder="https://"></div><div class="form-field full"><label class="field-label">Short Description</label><input class="field-input" id="vendor-product-short-description" maxlength="300"></div><div class="form-field full"><label class="field-label">Full Description *</label><textarea class="field-input" id="vendor-product-description" rows="5" maxlength="3000" required></textarea></div><div class="form-field full"><div class="modal-actions"><button class="btn" id="vendor-product-save" type="submit">Create Product</button><button class="btn-secondary" type="button" onclick="resetVendorProductForm()">Clear</button></div><p id="vendor-product-message" class="modal-error"></p></div></form>';
+        return `<form id="vendor-product-form" class="admin-edit-panel" style="display:block" onsubmit="saveVendorProduct(event)">
+          <input type="hidden" id="vendor-product-id">
+          <div class="admin-edit-panel-head"><span id="vendor-product-editor-title">Vendor · Add Product</span><button type="button" class="admin-editor-close" onclick="resetVendorProductForm()" aria-label="Clear editor">&times;</button></div>
+          <div class="admin-image-row"><div class="admin-image-preview" id="vendor-img-preview"><span>IMG</span></div><button type="button" class="admin-file-btn" onclick="document.getElementById('vendor-img-file').click()">Change Image</button><input type="file" id="vendor-img-file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onchange="handleVendorImageChosen(event)"></div>
+          <div class="admin-field"><label>Name *</label><input type="text" id="vendor-product-name" maxlength="160" required></div>
+          <div class="admin-field-row"><div class="admin-field"><label>Product Type *</label><input type="text" id="vendor-product-type" maxlength="100" placeholder="Wig, bundle, closure…" required></div><div class="admin-field"><label>Hair Type *</label><input type="text" id="vendor-product-hair-type" maxlength="100" placeholder="Straight, curly, body wave…" required></div></div>
+          <div class="admin-field-row"><div class="admin-field"><label>Collection *</label><select class="field-input" id="vendor-product-collection" required><option value="everyday">Everyday</option><option value="straight">Straight Hair</option><option value="bundles">Bundles</option><option value="wigs">Wigs</option></select></div><div class="admin-field"><label>Visibility *</label><select class="field-input" id="vendor-product-status" required><option value="draft">Draft</option><option value="active">Active in Store</option></select></div></div>
+          <div class="admin-field-row"><div class="admin-field"><label>Price (R) *</label><input type="number" id="vendor-product-price" min="0" step="0.01" required></div><div class="admin-field"><label>Old Price (optional)</label><input type="number" id="vendor-product-old-price" min="0" step="0.01"></div><div class="admin-field"><label>Stock *</label><input type="number" id="vendor-product-stock" min="0" step="1" value="0" required></div></div>
+          <div class="admin-field"><label>Tag (optional, e.g. New / Best Seller)</label><input type="text" id="vendor-product-tag" maxlength="50"></div>
+          <div class="admin-field"><label>Image URL (optional alternative to upload)</label><input type="url" id="vendor-product-image" maxlength="500" placeholder="https://" oninput="previewVendorImageUrl(this.value)"></div>
+          <div class="admin-field"><label>Hair Origins (select all that apply)</label><div class="admin-quick-chips" id="vendor-hair-origin-options"><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Vietnamese Virgin" onclick="toggleVendorHairOrigin('Vietnamese Virgin')">Vietnamese Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Brazilian Virgin" onclick="toggleVendorHairOrigin('Brazilian Virgin')">Brazilian Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Cambodian Virgin" onclick="toggleVendorHairOrigin('Cambodian Virgin')">Cambodian Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Indian Virgin" onclick="toggleVendorHairOrigin('Indian Virgin')">Indian Virgin</button><button type="button" class="admin-quick-chip" onclick="showVendorOriginForm()">+ Add origin</button></div><div class="admin-inline-add" id="vendor-add-origin-form" hidden><input type="text" id="vendor-new-origin" maxlength="80" placeholder="Enter hair origin"><button type="button" class="admin-quick-chip" onclick="submitVendorOrigin()">Add</button><button type="button" class="admin-quick-chip" onclick="closeVendorOriginForm()">Cancel</button></div></div>
+          <div class="admin-field"><label>Sizes (select all that apply)</label><div class="admin-quick-chips" id="vendor-size-options"><button type="button" class="admin-quick-chip" data-vendor-size='10"' onclick="toggleVendorSizeInches(10)">10&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='12"' onclick="toggleVendorSizeInches(12)">12&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='14"' onclick="toggleVendorSizeInches(14)">14&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='16"' onclick="toggleVendorSizeInches(16)">16&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='18"' onclick="toggleVendorSizeInches(18)">18&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='20"' onclick="toggleVendorSizeInches(20)">20&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='22"' onclick="toggleVendorSizeInches(22)">22&quot;</button><button type="button" class="admin-quick-chip" onclick="showVendorSizeForm()">+ Add size</button></div><div class="admin-inline-add" id="vendor-add-size-form" hidden><input type="text" id="vendor-new-size" maxlength="80" placeholder='e.g. 24"'><button type="button" class="admin-quick-chip" onclick="submitVendorSize()">Add</button><button type="button" class="admin-quick-chip" onclick="closeVendorSizeForm()">Cancel</button></div></div>
+          <div class="admin-field"><label>Product Details (select to add or remove)</label><div class="admin-quick-chips" id="vendor-detail-options"><button type="button" class="admin-quick-chip" data-vendor-detail-key="Texture" data-vendor-detail-value="Silky Straight" onclick="toggleVendorDetail('Texture','Silky Straight')">Texture: Silky Straight</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Type" data-vendor-detail-value="100% Virgin Hair" onclick="toggleVendorDetail('Type','100% Virgin Hair')">Type: 100% Virgin Hair</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Weight" data-vendor-detail-value="130g" onclick="toggleVendorDetail('Weight','130g')">Weight: 130g</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Colour" data-vendor-detail-value="Natural Black (1B)" onclick="toggleVendorDetail('Colour','Natural Black (1B)')">Colour: Natural Black (1B)</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Cuticle" data-vendor-detail-value="Fully Aligned" onclick="toggleVendorDetail('Cuticle','Fully Aligned')">Cuticle: Fully Aligned</button><button type="button" class="admin-quick-chip" onclick="showVendorDetailForm()">+ Add detail</button></div><div class="admin-inline-add" id="vendor-add-detail-form" hidden><input type="text" id="vendor-new-detail" maxlength="251" placeholder="Name: Value"><button type="button" class="admin-quick-chip" onclick="submitVendorDetail()">Add</button><button type="button" class="admin-quick-chip" onclick="closeVendorDetailForm()">Cancel</button></div></div>
+          <div class="admin-field"><label>Short Description</label><textarea id="vendor-product-short-description" maxlength="300"></textarea></div><div class="admin-field"><label>Full Description *</label><textarea id="vendor-product-description" maxlength="3000" required></textarea></div>
+          <div class="admin-save-row"><button class="btn" id="vendor-product-save" type="submit">Create Product</button><button class="btn-secondary" type="button" onclick="resetVendorProductForm()">Clear</button><span class="admin-status" id="vendor-product-message" role="status"></span></div>
+        </form>`;
+      }
+
+      function setVendorImagePreview(url) {
+        const preview = document.getElementById("vendor-img-preview");
+        if (!preview) return;
+        preview.innerHTML = url
+          ? '<img src="' + escapeHtml(url) + '" alt="Product preview" onerror="this.parentElement.innerHTML=\'<span>IMG</span>\'">'
+          : "<span>IMG</span>";
+      }
+
+      function previewVendorImageUrl(url) {
+        if (!pendingVendorImageFile) setVendorImagePreview(String(url || "").trim());
+      }
+
+      function handleVendorImageChosen(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+        if (!allowed.includes(file.type) || file.size > 2 * 1024 * 1024) {
+          window.alert("Choose a JPG, PNG, WEBP, or GIF image no larger than 2 MB.");
+          event.target.value = "";
+          return;
+        }
+        pendingVendorImageFile = file;
+        const reader = new FileReader();
+        reader.onload = () => setVendorImagePreview(reader.result);
+        reader.readAsDataURL(file);
+      }
+
+      function updateVendorSelectionButtons() {
+        document.querySelectorAll("[data-vendor-hair-origin]").forEach((button) => {
+          const selected = vendorSelectedHairOrigins.includes(button.dataset.vendorHairOrigin);
+          button.classList.toggle("is-selected", selected);
+          button.setAttribute("aria-pressed", String(selected));
+        });
+        document.querySelectorAll("[data-vendor-size]").forEach((button) => {
+          const selected = vendorSelectedSizes.includes(button.dataset.vendorSize);
+          button.classList.toggle("is-selected", selected);
+          button.setAttribute("aria-pressed", String(selected));
+        });
+        document.querySelectorAll("[data-vendor-detail-key]").forEach((button) => {
+          const selected = vendorSelectedDetails[button.dataset.vendorDetailKey] === button.dataset.vendorDetailValue;
+          button.classList.toggle("is-selected", selected);
+          button.setAttribute("aria-pressed", String(selected));
+        });
+      }
+
+      function addVendorSelectionButton(container, text, data, handler) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "admin-quick-chip";
+        button.dataset.vendorCustomSelection = "true";
+        button.textContent = text;
+        Object.entries(data).forEach(([key, value]) => { button.dataset[key] = value; });
+        button.addEventListener("click", handler);
+        container.appendChild(button);
+      }
+
+      function renderVendorCustomSelections() {
+        document.querySelectorAll("[data-vendor-custom-selection]").forEach((button) => button.remove());
+        const originOptions = document.getElementById("vendor-hair-origin-options");
+        const sizeOptions = document.getElementById("vendor-size-options");
+        const detailOptions = document.getElementById("vendor-detail-options");
+        if (!originOptions || !sizeOptions || !detailOptions) return;
+        vendorSelectedHairOrigins.forEach((origin) => {
+          const preset = [...originOptions.querySelectorAll("[data-vendor-hair-origin]")].some((button) => button.dataset.vendorHairOrigin === origin);
+          if (!preset) addVendorSelectionButton(originOptions, origin, { vendorHairOrigin: origin }, () => toggleVendorHairOrigin(origin));
+        });
+        vendorSelectedSizes.forEach((size) => {
+          const preset = [...sizeOptions.querySelectorAll("[data-vendor-size]")].some((button) => button.dataset.vendorSize === size);
+          if (!preset) addVendorSelectionButton(sizeOptions, size, { vendorSize: size }, () => toggleVendorSize(size));
+        });
+        Object.entries(vendorSelectedDetails).forEach(([key, value]) => {
+          const preset = [...detailOptions.querySelectorAll("[data-vendor-detail-key]")].some((button) => button.dataset.vendorDetailKey === key && button.dataset.vendorDetailValue === value);
+          if (!preset) addVendorSelectionButton(detailOptions, key + ": " + value, { vendorDetailKey: key, vendorDetailValue: value }, () => toggleVendorDetail(key, value));
+        });
+        updateVendorSelectionButtons();
+      }
+
+      function toggleVendorHairOrigin(value) {
+        vendorSelectedHairOrigins = vendorSelectedHairOrigins.includes(value) ? vendorSelectedHairOrigins.filter((item) => item !== value) : [...vendorSelectedHairOrigins, value];
+        renderVendorCustomSelections();
+      }
+      function toggleVendorSize(value) {
+        vendorSelectedSizes = vendorSelectedSizes.includes(value) ? vendorSelectedSizes.filter((item) => item !== value) : [...vendorSelectedSizes, value];
+        renderVendorCustomSelections();
+      }
+      function toggleVendorSizeInches(value) { toggleVendorSize(String(value) + '"'); }
+      function toggleVendorDetail(key, value) {
+        if (vendorSelectedDetails[key] === value) delete vendorSelectedDetails[key];
+        else vendorSelectedDetails[key] = value;
+        renderVendorCustomSelections();
+      }
+
+      function showVendorOriginForm() { document.getElementById("vendor-add-origin-form").hidden = false; document.getElementById("vendor-new-origin").focus(); }
+      function closeVendorOriginForm() { document.getElementById("vendor-add-origin-form").hidden = true; document.getElementById("vendor-new-origin").value = ""; }
+      function submitVendorOrigin() { const value = document.getElementById("vendor-new-origin").value.trim(); if (value && !vendorSelectedHairOrigins.includes(value)) vendorSelectedHairOrigins.push(value); renderVendorCustomSelections(); closeVendorOriginForm(); }
+      function showVendorSizeForm() { document.getElementById("vendor-add-size-form").hidden = false; document.getElementById("vendor-new-size").focus(); }
+      function closeVendorSizeForm() { document.getElementById("vendor-add-size-form").hidden = true; document.getElementById("vendor-new-size").value = ""; }
+      function submitVendorSize() { const value = document.getElementById("vendor-new-size").value.trim(); if (value && !vendorSelectedSizes.includes(value)) vendorSelectedSizes.push(value); renderVendorCustomSelections(); closeVendorSizeForm(); }
+      function showVendorDetailForm() { document.getElementById("vendor-add-detail-form").hidden = false; document.getElementById("vendor-new-detail").focus(); }
+      function closeVendorDetailForm() { document.getElementById("vendor-add-detail-form").hidden = true; document.getElementById("vendor-new-detail").value = ""; }
+      function submitVendorDetail() {
+        const raw = document.getElementById("vendor-new-detail").value.trim();
+        const [rawKey, ...rest] = raw.split(":");
+        const key = String(rawKey || "").trim();
+        const value = rest.join(":").trim();
+        if (!key || !value) return window.alert("Please use the format Name: Value.");
+        vendorSelectedDetails[key] = value;
+        renderVendorCustomSelections();
+        closeVendorDetailForm();
+      }
+
+      function vendorFileDataUrl(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Unable to read the selected image."));
+          reader.readAsDataURL(file);
+        });
       }
 
       async function loadVendorProducts(panel) {
@@ -5755,7 +5894,8 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
             vendorProductsCache.map((product) => '<tr><td><strong>' + escapeHtml(product.name) + '</strong><br><small>' + escapeHtml(product.product_type) + '</small></td><td>' + formatCurrency(Number(product.price)) + '</td><td>' + Number(product.stock_quantity) + '</td><td>' + escapeHtml(product.status) + '</td><td><button class="admin-table-action" onclick="editVendorProduct(' + Number(product.id) + ')">Edit</button> <button class="admin-table-action" onclick="deleteVendorProduct(' + Number(product.id) + ')">Delete</button></td></tr>').join('') +
             '</tbody></table></div>'
           : '<p class="account-empty">You have not created any products yet.</p>';
-        panel.innerHTML = '<h3>My Products</h3><p class="checkout-copy">Create and manage only the products owned by your vendor profile. Active products with stock appear in the store.</p>' + rows + '<h3 style="margin-top:32px">Add or Edit Product</h3>' + vendorProductFormMarkup();
+        panel.innerHTML = '<h3>My Products</h3><p class="checkout-copy">Create and manage only the products owned by your vendor profile. Active products with stock appear in the store.</p>' + rows + '<h3 style="margin-top:32px">Product Editor</h3>' + vendorProductFormMarkup();
+        resetVendorProductForm();
       }
 
       function resetVendorProductForm() {
@@ -5764,8 +5904,19 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         form.reset();
         document.getElementById("vendor-product-id").value = "";
         document.getElementById("vendor-product-stock").value = "0";
+        document.getElementById("vendor-product-editor-title").textContent = "Vendor · Add Product";
         document.getElementById("vendor-product-save").textContent = "Create Product";
-        document.getElementById("vendor-product-message").style.display = "none";
+        const message = document.getElementById("vendor-product-message");
+        message.textContent = "";
+        message.className = "admin-status";
+        vendorSelectedHairOrigins = [];
+        vendorSelectedSizes = [];
+        vendorSelectedDetails = {};
+        pendingVendorImageFile = null;
+        document.getElementById("vendor-img-file").value = "";
+        setVendorImagePreview("");
+        ["vendor-add-origin-form", "vendor-add-size-form", "vendor-add-detail-form"].forEach((id) => { document.getElementById(id).hidden = true; });
+        renderVendorCustomSelections();
       }
 
       function editVendorProduct(id) {
@@ -5784,6 +5935,14 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         document.getElementById("vendor-product-image").value = product.image_url || "";
         document.getElementById("vendor-product-short-description").value = product.short_description || "";
         document.getElementById("vendor-product-description").value = product.description || "";
+        vendorSelectedHairOrigins = [...(product.hair_origins || [])];
+        vendorSelectedSizes = [...(product.sizes || [])];
+        vendorSelectedDetails = { ...(product.details || {}) };
+        pendingVendorImageFile = null;
+        document.getElementById("vendor-img-file").value = "";
+        setVendorImagePreview(product.image_url || "");
+        renderVendorCustomSelections();
+        document.getElementById("vendor-product-editor-title").textContent = "Vendor · Edit This Product";
         document.getElementById("vendor-product-save").textContent = "Update Product";
         document.getElementById("vendor-product-form").scrollIntoView({ behavior: "smooth", block: "start" });
       }
@@ -5792,7 +5951,8 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
         const message = document.getElementById("vendor-product-message");
-        message.style.display = "none";
+        message.className = "admin-status";
+        message.textContent = "Saving…";
         if (!form.reportValidity()) return;
         const id = document.getElementById("vendor-product-id").value;
         const payload = {
@@ -5809,22 +5969,42 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           imageUrl: document.getElementById("vendor-product-image").value.trim(),
           shortDescription: document.getElementById("vendor-product-short-description").value.trim(),
           description: document.getElementById("vendor-product-description").value.trim(),
+          hairOrigins: vendorSelectedHairOrigins,
+          sizes: vendorSelectedSizes,
+          details: vendorSelectedDetails,
         };
         try {
           const token = await getSupabaseAccessToken();
+          if (!token) throw new Error("Please sign in again.");
           const res = await fetch("/api/vendor/products", {
             method: id ? "PATCH" : "POST",
             headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
             body: JSON.stringify(payload),
           });
-          const data = await res.json().catch(() => ({}));
+          let data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || "Unable to save product.");
+          if (pendingVendorImageFile) {
+            const imageRes = await fetch("/api/vendor/product-image", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+              body: JSON.stringify({ id: data.id, image: await vendorFileDataUrl(pendingVendorImageFile) }),
+            });
+            const imageData = await imageRes.json().catch(() => ({}));
+            if (!imageRes.ok) throw new Error(imageData.error || "Unable to upload the product image.");
+            data = imageData;
+          }
           await loadProducts();
           renderBestSellers();
-          openAccount(null, "vendor-products");
+          const index = vendorProductsCache.findIndex((product) => Number(product.id) === Number(data.id));
+          if (index === -1) vendorProductsCache.unshift(data);
+          else vendorProductsCache[index] = data;
+          renderVendorProducts(document.getElementById("account-panel"));
+          const savedMessage = document.getElementById("vendor-product-message");
+          savedMessage.textContent = "Saved.";
+          savedMessage.className = "admin-status ok";
         } catch (error) {
           message.textContent = error.message;
-          message.style.display = "block";
+          message.className = "admin-status err";
         }
       }
 
@@ -6298,8 +6478,10 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         roleBadge.textContent = isAdmin() ? "Admin" : isVendorPortal ? "Vendor" : "";
 
         const editTrigger = document.getElementById("admin-edit-trigger");
+        const ownedVendorProduct = currentUser?.isVendor && currentPdpProduct?.source === "vendor" && vendorProductsCache.some((product) => Number(product.id) === Number(currentPdpProduct.vendorProductId));
         editTrigger.style.display =
-          isAdmin() && currentPdpProduct ? "inline-block" : "none";
+          currentPdpProduct && (isAdmin() || ownedVendorProduct) ? "inline-block" : "none";
+        editTrigger.textContent = isAdmin() ? "Edit product" : "Edit my product";
         const panel = document.getElementById("admin-edit-panel");
         const showPanel = isAdmin() && currentPdpProduct && adminEditorOpen;
         panel.style.display = showPanel ? "block" : "none";
@@ -6314,6 +6496,15 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           behavior: "smooth",
           block: "start",
         });
+      }
+
+      async function openProductEditor() {
+        if (isAdmin()) return openAdminEditor();
+        const id = currentPdpProduct?.vendorProductId;
+        const owned = currentUser?.isVendor && vendorProductsCache.some((product) => Number(product.id) === Number(id));
+        if (!owned) return;
+        await openAccount(null, "vendor-products");
+        editVendorProduct(id);
       }
 
       function closeAdminEditor() {
