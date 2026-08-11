@@ -5317,13 +5317,22 @@ async function refreshAuthUI() {
     return;
   }
 
+  const { data: profile, error: profileError } = await window.supabaseClient
+    .from("profiles")
+    .select("first_name,last_name,phone,role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profileError) {
+    console.warn("Unable to load account profile:", profileError.message);
+  }
+
   currentUser = {
     id: user.id,
     email: user.email,
-    firstName: user.user_metadata?.first_name || "",
-    lastName: user.user_metadata?.last_name || "",
-    phone: user.user_metadata?.phone || "",
-    role: user.user_metadata?.role === "vendor" ? "vendor" : "customer",
+    firstName: profile?.first_name || user.user_metadata?.first_name || "",
+    lastName: profile?.last_name || user.user_metadata?.last_name || "",
+    phone: profile?.phone || user.user_metadata?.phone || "",
+    role: profile?.role === "vendor" ? "vendor" : "customer",
   };
 
   authToken = null;
@@ -5570,12 +5579,33 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
 
       async function completeVendorApplication() {
         const message = document.getElementById("vendor-message");
-        const token = await getSupabaseAccessToken();
-        const res = await fetch("/api/vendor-requests/complete", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, body: JSON.stringify({ businessName: document.getElementById("vendor-business-name").value.trim(), phone: document.getElementById("vendor-phone").value.trim() }) });
-        const data = await res.json();
-        message.className = res.ok ? "modal-success" : "modal-error";
-        message.textContent = data.message || data.error;
-        message.style.display = "block";
+        try {
+          const token = await getSupabaseAccessToken();
+          if (!token) throw new Error("Please sign in again before creating your vendor profile.");
+          const res = await fetch("/api/vendor-requests/complete", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify({
+              businessName: document.getElementById("vendor-business-name").value.trim(),
+              phone: document.getElementById("vendor-phone").value.trim(),
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Unable to create your vendor profile.");
+          await refreshAuthUI();
+          openAccount(null, "vendor");
+          const refreshedMessage = document.getElementById("vendor-message");
+          refreshedMessage.className = "modal-success";
+          refreshedMessage.textContent = data.message || "Your vendor profile is ready.";
+          refreshedMessage.style.display = "block";
+        } catch (error) {
+          message.className = "modal-error";
+          message.textContent = error.message || "Unable to create your vendor profile.";
+          message.style.display = "block";
+        }
       }
 
       async function openAccount(e, tab) {
@@ -5648,9 +5678,14 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           panel.innerHTML =
             '<h3>Wishlist</h3><p class="account-empty">Your saved favourites will appear here.</p>';
         else if (tab === "vendor") {
-          panel.innerHTML =
-            '<h3>Vendor Application</h3><p class="checkout-copy">Request a secure vendor application link. Once you receive it by email, return here to complete your business details for approval.</p><button class="btn" onclick="requestVendorApplication()">Email Me the Application Link</button><div id="vendor-application-form" style="display:none; margin-top:24px"><div class="form-field"><label class="field-label">Business Name</label><input class="field-input" id="vendor-business-name"></div><div class="form-field" style="margin-top:12px"><label class="field-label">Business Phone</label><input class="field-input" id="vendor-phone"></div><div class="modal-actions"><button class="btn" onclick="completeVendorApplication()">Submit for Approval</button></div></div><p id="vendor-message" class="modal-error"></p>';
-          if (window.location.hash === "#vendor-application") {
+          if (currentUserRole === "vendor") {
+            panel.innerHTML =
+              '<h3>Vendor Profile</h3><p class="checkout-copy">Your vendor profile is active.</p><p id="vendor-message" class="modal-success"></p>';
+          } else {
+            panel.innerHTML =
+              '<h3>Vendor Application</h3><p class="checkout-copy">Request a secure vendor application link. Once you receive it by email, return here to complete your business details and activate your vendor profile.</p><button class="btn" onclick="requestVendorApplication()">Email Me the Application Link</button><div id="vendor-application-form" style="display:none; margin-top:24px"><div class="form-field"><label class="field-label">Business Name</label><input class="field-input" id="vendor-business-name"></div><div class="form-field" style="margin-top:12px"><label class="field-label">Business Phone</label><input class="field-input" id="vendor-phone"></div><div class="modal-actions"><button class="btn" onclick="completeVendorApplication()">Create Vendor Profile</button></div></div><p id="vendor-message" class="modal-error"></p>';
+          }
+          if (currentUserRole !== "vendor" && window.location.hash === "#vendor-application") {
             document.getElementById("vendor-application-form").style.display = "block";
             history.replaceState(null, "", window.location.pathname);
           }
