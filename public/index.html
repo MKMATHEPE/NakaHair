@@ -2634,6 +2634,13 @@
           onclick="openLoginModal(event)"
           >Login</a
         >
+        <a
+          href="#"
+          class="nav-login"
+          id="vendor-login-nav-link"
+          onclick="openVendorLoginModal(event)"
+          >Vendor Login</a
+        >
         <span id="user-badge-wrap" style="display: none">
           <span class="admin-badge" id="user-role-badge"></span>
           <details
@@ -2649,6 +2656,8 @@
                 >Addresses</a
               ><a href="#" onclick="openAccount(event, 'profile')"
                 >Account Settings</a
+              ><a href="#" id="vendor-account-link" onclick="openAccount(event, 'vendor')"
+                >Vendor Profile</a
               ><button onclick="logout()">Logout</button>
             </div>
           </details>
@@ -2853,6 +2862,9 @@
             </li>
             <li>
               <a href="#vendor" onclick="startVendorJourney(event)">Become a Vendor</a>
+            </li>
+            <li>
+              <a href="#vendor-login" onclick="openVendorLoginModal(event)">Vendor Login</a>
             </li>
           </ul>
         </div>
@@ -4895,6 +4907,7 @@
       let currentUserName = null;
       let currentUser = null;
       let loginMode = "customer";
+      let currentPortal = "customer";
 
       function safeLocalStorageGet(key) {
         try {
@@ -4921,6 +4934,21 @@
         document.querySelector("#login-modal .modal-sub").textContent =
           "Sign in to your NAKA Hair account.";
         document.querySelector("#login-modal label").textContent = "Email";
+        document.getElementById("login-username").type = "email";
+        document.getElementById("login-username").autocomplete = "email";
+        document.getElementById("login-error").style.display = "none";
+        document.getElementById("login-username").value = "";
+        document.getElementById("login-password").value = "";
+        document.getElementById("login-modal").classList.add("open");
+        document.getElementById("login-username").focus();
+      }
+      function openVendorLoginModal(e) {
+        if (e) e.preventDefault();
+        loginMode = "vendor";
+        document.querySelector("#login-modal h2").textContent = "Vendor Login";
+        document.querySelector("#login-modal .modal-sub").textContent =
+          "Sign in to your approved NAKA Hair vendor profile.";
+        document.querySelector("#login-modal label").textContent = "Vendor Email";
         document.getElementById("login-username").type = "email";
         document.getElementById("login-username").autocomplete = "email";
         document.getElementById("login-error").style.display = "none";
@@ -5008,6 +5036,10 @@
         }
 
         try {
+          if (loginMode === "customer") {
+            currentPortal = "customer";
+            safeLocalStorageSet("NAKA_portal_mode", "customer");
+          }
           const { data, error } =
             await window.supabaseClient.auth.signInWithPassword({
               email,
@@ -5029,11 +5061,34 @@
   return;
 }
 
+          if (loginMode === "vendor") {
+            const { data: vendorProfile, error: vendorError } =
+              await window.supabaseClient
+                .from("vendor_requests")
+                .select("status,business_name")
+                .eq("user_id", data.user.id)
+                .maybeSingle();
+
+            if (vendorError || vendorProfile?.status !== "approved") {
+              await window.supabaseClient.auth.signOut();
+              errorEl.textContent =
+                "No approved vendor profile was found for this account. Apply as a vendor or use the customer login.";
+              errorEl.style.display = "block";
+              return;
+            }
+
+            currentPortal = "vendor";
+            safeLocalStorageSet("NAKA_portal_mode", "vendor");
+          }
+
           closeLoginModal();
 
           // Refresh the UI using your existing session function.
           if (typeof refreshAuthUI === "function") {
             await refreshAuthUI();
+          }
+          if (loginMode === "vendor") {
+            openAccount(null, "vendor");
           }
         } catch (err) {
           console.error("Login exception:", err);
@@ -5313,6 +5368,7 @@ async function refreshAuthUI() {
     currentUser = null;
     currentUserRole = null;
     currentUserName = null;
+    currentPortal = "customer";
     updateUserUI();
     return;
   }
@@ -5327,7 +5383,7 @@ async function refreshAuthUI() {
   }
   const { data: vendorRequest, error: vendorError } = await window.supabaseClient
     .from("vendor_requests")
-    .select("status")
+    .select("status,business_name")
     .eq("user_id", user.id)
     .maybeSingle();
   if (vendorError) {
@@ -5342,6 +5398,7 @@ async function refreshAuthUI() {
     phone: profile?.phone || user.user_metadata?.phone || "",
     role: profile?.role || "customer",
     isVendor: vendorRequest?.status === "approved",
+    vendorBusinessName: vendorRequest?.business_name || "",
   };
 
   authToken = null;
@@ -5349,6 +5406,10 @@ async function refreshAuthUI() {
   safeLocalStorageRemove("NAKA_user_role");
   currentUserRole = currentUser.role;
   currentUserName = currentUser.firstName || user.email;
+  currentPortal =
+    currentUser.isVendor && safeLocalStorageGet("NAKA_portal_mode") === "vendor"
+      ? "vendor"
+      : "customer";
 
   updateUserUI();
 }
@@ -5382,8 +5443,9 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
     authToken = null;
     currentUser = null;
     currentUserRole = null;
-    currentUserName = null;
-    updateUserUI();
+        currentUserName = null;
+        currentPortal = "customer";
+        updateUserUI();
   }
 });
 
@@ -5505,10 +5567,12 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         currentUserRole = null;
         currentUserName = null;
         currentUser = null;
+        currentPortal = "customer";
         adminEditorOpen = false;
         closeAdminDashboard();
         safeLocalStorageRemove("NAKA_user_token");
         safeLocalStorageRemove("NAKA_user_role");
+        safeLocalStorageRemove("NAKA_portal_mode");
         updateUserUI();
       }
 
@@ -5645,9 +5709,18 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         const view = document.getElementById("account-view");
         view.style.display = "block";
         view.scrollIntoView({ behavior: "smooth", block: "start" });
-        const tabs = ["profile", "orders", "wishlist", "addresses", "vendor"];
+        const isVendorPortal = currentPortal === "vendor" && currentUser?.isVendor;
+        const tabs = isVendorPortal
+          ? ["vendor", "profile"]
+          : ["profile", "orders", "wishlist", "addresses", "vendor"];
         view.innerHTML =
-          '<h1>My Account</h1><p>Manage your NAKA Hair account.</p><div class="account-tabs">' +
+          '<h1>' +
+          (isVendorPortal ? "Vendor Dashboard" : "My Account") +
+          '</h1><p>' +
+          (isVendorPortal
+            ? "Manage your NAKA Hair vendor profile."
+            : "Manage your NAKA Hair account.") +
+          '</p><div class="account-tabs">' +
           tabs
             .map(
               (name) =>
@@ -5711,7 +5784,9 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         else if (tab === "vendor") {
           if (currentUser?.isVendor) {
             panel.innerHTML =
-              '<h3>Vendor Profile</h3><p class="checkout-copy">Your vendor profile is active.</p><p id="vendor-message" class="modal-success"></p>';
+              '<h3>Vendor Profile</h3><p class="checkout-copy"><strong>' +
+              escapeHtml(currentUser.vendorBusinessName || "Your business") +
+              '</strong> is approved and active.</p><p id="vendor-message" class="modal-success"></p>';
           } else {
             panel.innerHTML =
               '<h3>Vendor Application</h3><p class="checkout-copy">Request a secure vendor application link. Once you receive it by email, return here to complete your business details and activate your vendor profile.</p><button class="btn" onclick="requestVendorApplication()">Email Me the Application Link</button><div id="vendor-application-form" style="display:none; margin-top:24px"><div class="form-grid"><div class="form-field"><label class="field-label">Business Name *</label><input class="field-input" id="vendor-business-name" maxlength="160" required></div><div class="form-field"><label class="field-label">Contact Person *</label><input class="field-input" id="vendor-contact-name" maxlength="120" required></div><div class="form-field"><label class="field-label">Business Phone *</label><input class="field-input" id="vendor-phone" type="tel" maxlength="50" required></div><div class="form-field"><label class="field-label">Business Type *</label><select class="field-input" id="vendor-business-type" required><option value="">Select a type</option><option value="salon">Salon</option><option value="stylist">Hair Stylist</option><option value="retailer">Retailer</option><option value="wholesaler">Wholesaler</option><option value="online-store">Online Store</option><option value="other">Other</option></select></div><div class="form-field"><label class="field-label">Registration Number</label><input class="field-input" id="vendor-registration-number" maxlength="100"></div><div class="form-field"><label class="field-label">Tax / VAT Number</label><input class="field-input" id="vendor-tax-number" maxlength="100"></div><div class="form-field"><label class="field-label">Website</label><input class="field-input" id="vendor-website-url" type="url" maxlength="500" placeholder="https://"></div><div class="form-field"><label class="field-label">Social Profile</label><input class="field-input" id="vendor-social-media-url" type="url" maxlength="500" placeholder="https://"></div><div class="form-field full"><label class="field-label">Street Address *</label><input class="field-input" id="vendor-street-address" maxlength="200" required></div><div class="form-field"><label class="field-label">City *</label><input class="field-input" id="vendor-city" maxlength="100" required></div><div class="form-field"><label class="field-label">Province *</label><select class="field-input" id="vendor-province" required><option value="">Select a province</option><option>Eastern Cape</option><option>Free State</option><option>Gauteng</option><option>KwaZulu-Natal</option><option>Limpopo</option><option>Mpumalanga</option><option>North West</option><option>Northern Cape</option><option>Western Cape</option></select></div><div class="form-field"><label class="field-label">Postal Code *</label><input class="field-input" id="vendor-postal-code" maxlength="20" inputmode="numeric" required></div><div class="form-field full"><label class="field-label">Tell Us About Your Business *</label><textarea class="field-input" id="vendor-business-description" rows="5" maxlength="2000" placeholder="Describe your services, customers, and the hair products you are interested in." required></textarea></div></div><div class="modal-actions"><button class="btn" onclick="completeVendorApplication()">Create Vendor Profile</button></div></div><p id="vendor-message" class="modal-error"></p>';
@@ -6013,22 +6088,29 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         const badgeWrap = document.getElementById("user-badge-wrap");
         const roleBadge = document.getElementById("user-role-badge");
         const loginLink = document.getElementById("login-nav-link");
+        const vendorLoginLink = document.getElementById("vendor-login-nav-link");
         const customerMenu = document.getElementById("customer-menu");
+        const vendorAccountLink = document.getElementById("vendor-account-link");
         const adminLogout = document.getElementById("admin-logout");
         const dashboardButton = document.getElementById("admin-dashboard-btn");
         const hasSession = !!currentUserRole;
         badgeWrap.style.display = hasSession ? "inline-flex" : "none";
         loginLink.style.display = hasSession ? "none" : "inline";
+        vendorLoginLink.style.display = hasSession ? "none" : "inline";
         customerMenu.style.display =
           ["customer", "vendor"].includes(currentUserRole) ? "inline-flex" : "none";
         adminLogout.style.display = isAdmin() ? "inline-block" : "none";
         dashboardButton.style.display = isAdmin() ? "inline-block" : "none";
-        roleBadge.style.display = isAdmin() ? "inline-block" : "none";
+        const isVendorPortal = currentPortal === "vendor" && currentUser?.isVendor;
+        roleBadge.style.display = isAdmin() || isVendorPortal ? "inline-block" : "none";
+        vendorAccountLink.style.display = currentUser?.isVendor ? "block" : "none";
         document.getElementById("customer-greeting").textContent =
           ["customer", "vendor"].includes(currentUserRole)
-            ? "Hi, " + (currentUserName || "there")
+            ? isVendorPortal
+              ? "Vendor, " + (currentUser?.vendorBusinessName || currentUserName || "there")
+              : "Hi, " + (currentUserName || "there")
             : "";
-        roleBadge.textContent = isAdmin() ? "Admin" : "";
+        roleBadge.textContent = isAdmin() ? "Admin" : isVendorPortal ? "Vendor" : "";
 
         const editTrigger = document.getElementById("admin-edit-trigger");
         editTrigger.style.display =
