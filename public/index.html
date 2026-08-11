@@ -5429,6 +5429,24 @@ async function restoreCustomerOrAdminSession() {
   await restoreAdminSession();
 }
 
+function openVendorApplicationFromEmail() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("vendor_application") !== "1" || !currentUser) return;
+
+  currentPortal = "customer";
+  safeLocalStorageSet("NAKA_portal_mode", "customer");
+  openAccount(null, "vendor");
+
+  if (!currentUser.isVendor) {
+    const form = document.getElementById("vendor-application-form");
+    if (form) form.style.display = "block";
+  }
+
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete("vendor_application");
+  history.replaceState(null, "", cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+}
+
 window.supabaseClient.auth.onAuthStateChange(async (event) => {
   if (event === "PASSWORD_RECOVERY") {
     setTimeout(openResetPasswordModal, 0);
@@ -5437,6 +5455,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
 
   if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
     await refreshAuthUI();
+    openVendorApplicationFromEmail();
   }
 
   if (event === "SIGNED_OUT") {

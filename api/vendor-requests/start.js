@@ -62,7 +62,9 @@ module.exports = async function handler(request, response) {
         create_user: false,
         gotrue_meta_security: {},
         options: {
-          email_redirect_to: `${appUrl}/#vendor-application`,
+          // Supabase's implicit auth flow uses the URL fragment for session
+          // tokens, so keep our application destination in the query string.
+          email_redirect_to: `${appUrl}/?vendor_application=1`,
         },
       }),
     });
