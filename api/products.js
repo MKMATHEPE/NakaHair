@@ -6,27 +6,33 @@ const money = (value) => `R${Number(value).toLocaleString("en-ZA", {
   maximumFractionDigits: 2,
 })}`;
 
-const toPublicProduct = (row) => ({
-  id: `vendor-${row.id}`,
-  vendorProductId: row.id,
-  source: "vendor",
-  collection: row.collection,
-  hairType: row.hair_type,
-  name: row.name,
-  type: row.product_type,
-  price: money(row.price),
-  oldPrice: row.old_price == null ? null : money(row.old_price),
-  tag: row.tag || "Vendor",
-  rating: Number(row.rating || 0),
-  reviewCount: Number(row.review_count || 0),
-  shortDesc: row.short_description || "",
-  desc: row.description || "",
-  image: row.image_url || "",
-  sizes: row.sizes || [],
-  hairOrigins: row.hair_origins || [],
-  details: row.details || {},
-  stockQuantity: row.stock_quantity,
-});
+const toPublicProduct = (row) => {
+  const images = Array.isArray(row.image_urls) && row.image_urls.length
+    ? row.image_urls
+    : row.image_url ? [row.image_url] : [];
+  return {
+    id: `vendor-${row.id}`,
+    vendorProductId: row.id,
+    source: "vendor",
+    collection: row.collection,
+    hairType: row.hair_type,
+    name: row.name,
+    type: row.product_type,
+    price: money(row.price),
+    oldPrice: row.old_price == null ? null : money(row.old_price),
+    tag: row.tag || "Vendor",
+    rating: Number(row.rating || 0),
+    reviewCount: Number(row.review_count || 0),
+    shortDesc: row.short_description || "",
+    desc: row.description || "",
+    image: images[0] || "",
+    images,
+    sizes: row.sizes || [],
+    hairOrigins: row.hair_origins || [],
+    details: row.details || {},
+    stockQuantity: row.stock_quantity,
+  };
+};
 
 module.exports = async function handler(request, response) {
   if (request.method !== "GET") {

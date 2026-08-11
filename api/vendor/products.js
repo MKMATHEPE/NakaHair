@@ -195,18 +195,22 @@ module.exports = async function handler(request, response) {
       const rows = await result.json();
       if (!rows[0]) return json(response, 404, { error: "Product not found." });
       const marker = "/storage/v1/object/public/vendor-products/";
-      const imageUrl = String(rows[0].image_url || "");
-      const markerIndex = imageUrl.indexOf(marker);
-      if (markerIndex !== -1) {
+      const imageUrls = [...new Set(Array.isArray(rows[0].image_urls) && rows[0].image_urls.length
+        ? rows[0].image_urls
+        : rows[0].image_url ? [rows[0].image_url] : [])];
+      if (imageUrls.length) {
         const { url, key } = getConfig();
-        let objectPath = "";
-        try { objectPath = decodeURIComponent(imageUrl.slice(markerIndex + marker.length)); } catch {}
-        if (objectPath) {
+        imageUrls.forEach((imageUrl) => {
+          const markerIndex = String(imageUrl).indexOf(marker);
+          if (markerIndex === -1) return;
+          let objectPath = "";
+          try { objectPath = decodeURIComponent(String(imageUrl).slice(markerIndex + marker.length)); } catch {}
+          if (!objectPath) return;
           fetch(`${url}/storage/v1/object/vendor-products/${objectPath}`, {
             method: "DELETE",
             headers: serviceHeaders(key),
           }).catch((error) => console.error("Unable to remove deleted vendor image:", error));
-        }
+        });
       }
       return json(response, 200, { deleted: true });
     }

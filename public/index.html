@@ -1009,6 +1009,48 @@
         height: 100%;
         object-fit: cover;
       }
+      .vendor-image-manager {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+        gap: 10px;
+        margin: 10px 0 14px;
+      }
+      .vendor-image-thumb {
+        aspect-ratio: 1;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: var(--light);
+      }
+      .vendor-image-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .vendor-image-remove {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        width: 24px;
+        height: 24px;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(17, 17, 17, 0.82);
+        color: white;
+        cursor: pointer;
+        line-height: 1;
+      }
+      .vendor-image-primary {
+        position: absolute;
+        left: 5px;
+        bottom: 5px;
+        padding: 3px 6px;
+        background: rgba(17, 17, 17, 0.82);
+        color: white;
+        font-size: 9px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
       .admin-file-btn {
         font-size: 12px;
         border: 1px solid var(--border);
@@ -1143,14 +1185,22 @@
         gap: 6px;
         padding: 12px 0 4px;
       }
+      .pdp-dots:empty {
+        display: none;
+      }
       .pdp-dot {
         width: 6px;
         height: 6px;
+        border: 0;
+        padding: 0;
         border-radius: 50%;
         background: var(--border);
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease;
       }
       .pdp-dot.active {
         background: var(--black);
+        transform: scale(1.25);
       }
 
       .pdp-body {
@@ -3203,11 +3253,7 @@
           />
           <div class="pdp-badge" id="pdp-badge" style="display: none"></div>
         </div>
-        <div class="pdp-dots">
-          <div class="pdp-dot active"></div>
-          <div class="pdp-dot"></div>
-          <div class="pdp-dot"></div>
-        </div>
+        <div class="pdp-dots" id="pdp-dots" aria-label="Product images"></div>
 
         <div class="pdp-body">
           <!-- Info card -->
@@ -4466,6 +4512,54 @@
       let selectedHairOrigins = [];
       let selectedSizes = [];
       let selectedDetails = {};
+      let currentPdpImageIndex = 0;
+
+      function getProductImages(product) {
+        const images = Array.isArray(product?.images) && product.images.length
+          ? product.images
+          : product?.image ? [product.image] : [];
+        return [...new Set(images.map((url) => String(url || "").trim()).filter(Boolean))];
+      }
+
+      function showPdpImage(index) {
+        const images = getProductImages(currentPdpProduct);
+        if (!images.length) return;
+        currentPdpImageIndex = Math.max(0, Math.min(Number(index) || 0, images.length - 1));
+        const image = document.getElementById("pdp-img-el");
+        image.alt = currentPdpProduct.name + " — image " + (currentPdpImageIndex + 1);
+        image.src = images[currentPdpImageIndex];
+        image.style.display = "block";
+        document.querySelectorAll("#pdp-dots .pdp-dot").forEach((dot, dotIndex) => {
+          const active = dotIndex === currentPdpImageIndex;
+          dot.classList.toggle("active", active);
+          dot.setAttribute("aria-current", active ? "true" : "false");
+        });
+      }
+
+      function renderPdpGallery(product) {
+        const images = getProductImages(product);
+        const dots = document.getElementById("pdp-dots");
+        const image = document.getElementById("pdp-img-el");
+        dots.innerHTML = "";
+        currentPdpImageIndex = 0;
+        if (!images.length) {
+          image.style.display = "none";
+          image.removeAttribute("src");
+          return;
+        }
+        if (images.length > 1) {
+          images.forEach((url, index) => {
+            const dot = document.createElement("button");
+            dot.type = "button";
+            dot.className = "pdp-dot" + (index === 0 ? " active" : "");
+            dot.setAttribute("aria-label", "Show product image " + (index + 1) + " of " + images.length);
+            dot.setAttribute("aria-current", index === 0 ? "true" : "false");
+            dot.addEventListener("click", () => showPdpImage(index));
+            dots.appendChild(dot);
+          });
+        }
+        showPdpImage(0);
+      }
 
       function updatePdpSizeLabel() {
         const label = document.getElementById("pdp-size-label");
@@ -4483,17 +4577,7 @@
         document.getElementById("pdp-type").textContent = p.type;
         document.getElementById("pdp-desc").textContent = p.desc;
 
-        // Hero image (falls back to the placeholder text if none is set,
-        // or if the URL fails to load)
-        const pdpImgEl = document.getElementById("pdp-img-el");
-        if (p.image) {
-          pdpImgEl.style.display = "block";
-          pdpImgEl.alt = p.name;
-          pdpImgEl.src = p.image;
-        } else {
-          pdpImgEl.style.display = "none";
-          pdpImgEl.removeAttribute("src");
-        }
+        renderPdpGallery(p);
 
         document.getElementById("pdp-stars").textContent = starsFromRating(
           p.rating,
@@ -4922,7 +5006,8 @@
       let vendorSelectedHairOrigins = [];
       let vendorSelectedSizes = [];
       let vendorSelectedDetails = {};
-      let pendingVendorImageFile = null;
+      let pendingVendorImageFiles = [];
+      let vendorProductImages = [];
 
       function isVendorPortalMode() {
         return currentPortal === "vendor" && !!currentUser?.isVendor;
@@ -5745,13 +5830,12 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         return `<form id="vendor-product-form" class="admin-edit-panel" style="display:block" onsubmit="saveVendorProduct(event)">
           <input type="hidden" id="vendor-product-id">
           <div class="admin-edit-panel-head"><span id="vendor-product-editor-title">Vendor · Add Product</span><button type="button" class="admin-editor-close" onclick="resetVendorProductForm()" aria-label="Clear editor">&times;</button></div>
-          <div class="admin-image-row"><div class="admin-image-preview" id="vendor-img-preview"><span>IMG</span></div><button type="button" class="admin-file-btn" onclick="document.getElementById('vendor-img-file').click()">Change Image</button><input type="file" id="vendor-img-file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onchange="handleVendorImageChosen(event)"></div>
+          <div class="admin-field"><label>Product Images (up to 8)</label><button type="button" class="admin-file-btn" onclick="document.getElementById('vendor-img-file').click()">+ Add Images</button><input type="file" id="vendor-img-file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden onchange="handleVendorImagesChosen(event)"><div class="vendor-image-manager" id="vendor-image-gallery"></div><small class="checkout-copy">The first image is used as the main catalogue image. Each image must be 2 MB or smaller.</small></div>
           <div class="admin-field"><label>Name *</label><input type="text" id="vendor-product-name" maxlength="160" required></div>
           <div class="admin-field-row"><div class="admin-field"><label>Product Type *</label><input type="text" id="vendor-product-type" maxlength="100" placeholder="Wig, bundle, closure…" required></div><div class="admin-field"><label>Hair Type *</label><input type="text" id="vendor-product-hair-type" maxlength="100" placeholder="Straight, curly, body wave…" required></div></div>
           <div class="admin-field-row"><div class="admin-field"><label>Collection *</label><select class="field-input" id="vendor-product-collection" required><option value="everyday">Glam On A Budget</option><option value="signature">Signature Collection</option><option value="luxe">Luxe Collection</option></select></div><div class="admin-field"><label>Visibility *</label><select class="field-input" id="vendor-product-status" required><option value="draft">Draft</option><option value="active">Active in Store</option></select></div></div>
           <div class="admin-field-row"><div class="admin-field"><label>Price (R) *</label><input type="number" id="vendor-product-price" min="0" step="0.01" required></div><div class="admin-field"><label>Old Price (optional)</label><input type="number" id="vendor-product-old-price" min="0" step="0.01"></div><div class="admin-field"><label>Stock *</label><input type="number" id="vendor-product-stock" min="0" step="1" value="0" required></div></div>
           <div class="admin-field"><label>Tag (optional, e.g. New / Best Seller)</label><input type="text" id="vendor-product-tag" maxlength="50"></div>
-          <div class="admin-field"><label>Image URL (optional alternative to upload)</label><input type="url" id="vendor-product-image" maxlength="500" placeholder="https://" oninput="previewVendorImageUrl(this.value)"></div>
           <div class="admin-field"><label>Hair Origins (select all that apply)</label><div class="admin-quick-chips" id="vendor-hair-origin-options"><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Vietnamese Virgin" onclick="toggleVendorHairOrigin('Vietnamese Virgin')">Vietnamese Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Brazilian Virgin" onclick="toggleVendorHairOrigin('Brazilian Virgin')">Brazilian Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Cambodian Virgin" onclick="toggleVendorHairOrigin('Cambodian Virgin')">Cambodian Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Indian Virgin" onclick="toggleVendorHairOrigin('Indian Virgin')">Indian Virgin</button><button type="button" class="admin-quick-chip" onclick="showVendorOriginForm()">+ Add origin</button></div><div class="admin-inline-add" id="vendor-add-origin-form" hidden><input type="text" id="vendor-new-origin" maxlength="80" placeholder="Enter hair origin"><button type="button" class="admin-quick-chip" onclick="submitVendorOrigin()">Add</button><button type="button" class="admin-quick-chip" onclick="closeVendorOriginForm()">Cancel</button></div></div>
           <div class="admin-field"><label>Sizes (select all that apply)</label><div class="admin-quick-chips" id="vendor-size-options"><button type="button" class="admin-quick-chip" data-vendor-size='10"' onclick="toggleVendorSizeInches(10)">10&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='12"' onclick="toggleVendorSizeInches(12)">12&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='14"' onclick="toggleVendorSizeInches(14)">14&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='16"' onclick="toggleVendorSizeInches(16)">16&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='18"' onclick="toggleVendorSizeInches(18)">18&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='20"' onclick="toggleVendorSizeInches(20)">20&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='22"' onclick="toggleVendorSizeInches(22)">22&quot;</button><button type="button" class="admin-quick-chip" onclick="showVendorSizeForm()">+ Add size</button></div><div class="admin-inline-add" id="vendor-add-size-form" hidden><input type="text" id="vendor-new-size" maxlength="80" placeholder='e.g. 24"'><button type="button" class="admin-quick-chip" onclick="submitVendorSize()">Add</button><button type="button" class="admin-quick-chip" onclick="closeVendorSizeForm()">Cancel</button></div></div>
           <div class="admin-field"><label>Product Details (select to add or remove)</label><div class="admin-quick-chips" id="vendor-detail-options"><button type="button" class="admin-quick-chip" data-vendor-detail-key="Texture" data-vendor-detail-value="Silky Straight" onclick="toggleVendorDetail('Texture','Silky Straight')">Texture: Silky Straight</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Type" data-vendor-detail-value="100% Virgin Hair" onclick="toggleVendorDetail('Type','100% Virgin Hair')">Type: 100% Virgin Hair</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Weight" data-vendor-detail-value="130g" onclick="toggleVendorDetail('Weight','130g')">Weight: 130g</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Colour" data-vendor-detail-value="Natural Black (1B)" onclick="toggleVendorDetail('Colour','Natural Black (1B)')">Colour: Natural Black (1B)</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Cuticle" data-vendor-detail-value="Fully Aligned" onclick="toggleVendorDetail('Cuticle','Fully Aligned')">Cuticle: Fully Aligned</button><button type="button" class="admin-quick-chip" onclick="showVendorDetailForm()">+ Add detail</button></div><div class="admin-inline-add" id="vendor-add-detail-form" hidden><input type="text" id="vendor-new-detail" maxlength="251" placeholder="Name: Value"><button type="button" class="admin-quick-chip" onclick="submitVendorDetail()">Add</button><button type="button" class="admin-quick-chip" onclick="closeVendorDetailForm()">Cancel</button></div></div>
@@ -5760,31 +5844,67 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         </form>`;
       }
 
-      function setVendorImagePreview(url) {
-        const preview = document.getElementById("vendor-img-preview");
-        if (!preview) return;
-        preview.innerHTML = url
-          ? '<img src="' + escapeHtml(url) + '" alt="Product preview" onerror="this.parentElement.innerHTML=\'<span>IMG</span>\'">'
-          : "<span>IMG</span>";
+      function renderVendorImageGallery() {
+        const gallery = document.getElementById("vendor-image-gallery");
+        if (!gallery) return;
+        const savedMarkup = vendorProductImages.map((url, index) =>
+          '<div class="vendor-image-thumb"><img src="' + escapeHtml(url) + '" alt="Saved product image ' + (index + 1) + '"><button type="button" class="vendor-image-remove" onclick="removeVendorSavedImage(' + index + ')" aria-label="Remove image ' + (index + 1) + '">&times;</button>' + (index === 0 ? '<span class="vendor-image-primary">Primary</span>' : '') + '</div>'
+        ).join("");
+        const pendingMarkup = pendingVendorImageFiles.map((entry, index) =>
+          '<div class="vendor-image-thumb"><img src="' + escapeHtml(entry.dataUrl) + '" alt="New product image ' + (index + 1) + '"><button type="button" class="vendor-image-remove" onclick="removePendingVendorImage(' + index + ')" aria-label="Remove pending image ' + (index + 1) + '">&times;</button>' + (!vendorProductImages.length && index === 0 ? '<span class="vendor-image-primary">Primary</span>' : '') + '</div>'
+        ).join("");
+        gallery.innerHTML = (savedMarkup + pendingMarkup) || '<p class="account-empty">No product images added yet.</p>';
       }
 
-      function previewVendorImageUrl(url) {
-        if (!pendingVendorImageFile) setVendorImagePreview(String(url || "").trim());
-      }
-
-      function handleVendorImageChosen(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-        if (!allowed.includes(file.type) || file.size > 2 * 1024 * 1024) {
-          window.alert("Choose a JPG, PNG, WEBP, or GIF image no larger than 2 MB.");
-          event.target.value = "";
+      async function handleVendorImagesChosen(event) {
+        const files = [...event.target.files];
+        event.target.value = "";
+        if (!files.length) return;
+        const available = 8 - vendorProductImages.length - pendingVendorImageFiles.length;
+        if (files.length > available) {
+          window.alert("You can add " + Math.max(available, 0) + " more image" + (available === 1 ? "." : "s."));
           return;
         }
-        pendingVendorImageFile = file;
-        const reader = new FileReader();
-        reader.onload = () => setVendorImagePreview(reader.result);
-        reader.readAsDataURL(file);
+        const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+        for (const file of files) {
+          if (!allowed.includes(file.type) || file.size > 2 * 1024 * 1024) {
+            window.alert("Each image must be a JPG, PNG, WEBP, or GIF no larger than 2 MB.");
+            return;
+          }
+        }
+        const previews = await Promise.all(files.map(async (file) => ({ file, dataUrl: await vendorFileDataUrl(file) })));
+        pendingVendorImageFiles.push(...previews);
+        renderVendorImageGallery();
+      }
+
+      function removePendingVendorImage(index) {
+        pendingVendorImageFiles.splice(index, 1);
+        renderVendorImageGallery();
+      }
+
+      async function removeVendorSavedImage(index) {
+        const id = Number(document.getElementById("vendor-product-id").value);
+        const imageUrl = vendorProductImages[index];
+        if (!id || !imageUrl || !window.confirm("Remove this product image?")) return;
+        try {
+          const token = await getSupabaseAccessToken();
+          if (!token) throw new Error("Please sign in again.");
+          const response = await fetch("/api/vendor/product-image", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+            body: JSON.stringify({ id, imageUrl }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "Unable to remove the image.");
+          vendorProductImages = [...(data.image_urls || [])];
+          const productIndex = vendorProductsCache.findIndex((product) => Number(product.id) === id);
+          if (productIndex !== -1) vendorProductsCache[productIndex] = data;
+          renderVendorImageGallery();
+          await loadProducts();
+          renderBestSellers();
+        } catch (error) {
+          window.alert(error.message || "Unable to remove the image.");
+        }
       }
 
       function updateVendorSelectionButtons() {
@@ -5921,9 +6041,10 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         vendorSelectedHairOrigins = [];
         vendorSelectedSizes = [];
         vendorSelectedDetails = {};
-        pendingVendorImageFile = null;
+        pendingVendorImageFiles = [];
+        vendorProductImages = [];
         document.getElementById("vendor-img-file").value = "";
-        setVendorImagePreview("");
+        renderVendorImageGallery();
         ["vendor-add-origin-form", "vendor-add-size-form", "vendor-add-detail-form"].forEach((id) => { document.getElementById(id).hidden = true; });
         renderVendorCustomSelections();
       }
@@ -5941,15 +6062,17 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         document.getElementById("vendor-product-stock").value = product.stock_quantity ?? 0;
         document.getElementById("vendor-product-status").value = product.status || "draft";
         document.getElementById("vendor-product-tag").value = product.tag || "";
-        document.getElementById("vendor-product-image").value = product.image_url || "";
         document.getElementById("vendor-product-short-description").value = product.short_description || "";
         document.getElementById("vendor-product-description").value = product.description || "";
         vendorSelectedHairOrigins = [...(product.hair_origins || [])];
         vendorSelectedSizes = [...(product.sizes || [])];
         vendorSelectedDetails = { ...(product.details || {}) };
-        pendingVendorImageFile = null;
+        pendingVendorImageFiles = [];
+        vendorProductImages = Array.isArray(product.image_urls) && product.image_urls.length
+          ? [...product.image_urls]
+          : product.image_url ? [product.image_url] : [];
         document.getElementById("vendor-img-file").value = "";
-        setVendorImagePreview(product.image_url || "");
+        renderVendorImageGallery();
         renderVendorCustomSelections();
         document.getElementById("vendor-product-editor-title").textContent = "Vendor · Edit This Product";
         document.getElementById("vendor-product-save").textContent = "Update Product";
@@ -5975,7 +6098,6 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           stockQuantity: document.getElementById("vendor-product-stock").value,
           status: document.getElementById("vendor-product-status").value,
           tag: document.getElementById("vendor-product-tag").value.trim(),
-          imageUrl: document.getElementById("vendor-product-image").value.trim(),
           shortDescription: document.getElementById("vendor-product-short-description").value.trim(),
           description: document.getElementById("vendor-product-description").value.trim(),
           hairOrigins: vendorSelectedHairOrigins,
@@ -5992,15 +6114,18 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           });
           let data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || "Unable to save product.");
-          if (pendingVendorImageFile) {
+          while (pendingVendorImageFiles.length) {
+            const pendingImage = pendingVendorImageFiles[0];
             const imageRes = await fetch("/api/vendor/product-image", {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-              body: JSON.stringify({ id: data.id, image: await vendorFileDataUrl(pendingVendorImageFile) }),
+              body: JSON.stringify({ id: data.id, image: pendingImage.dataUrl }),
             });
             const imageData = await imageRes.json().catch(() => ({}));
             if (!imageRes.ok) throw new Error(imageData.error || "Unable to upload the product image.");
             data = imageData;
+            vendorProductImages = [...(data.image_urls || [])];
+            pendingVendorImageFiles.shift();
           }
           await loadProducts();
           renderBestSellers();
@@ -6014,6 +6139,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         } catch (error) {
           message.textContent = error.message;
           message.className = "admin-status err";
+          renderVendorImageGallery();
         }
       }
 

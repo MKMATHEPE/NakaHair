@@ -13,6 +13,7 @@ const allowedTypes = {
   "image/gif": "gif",
 };
 const maxImageBytes = 2 * 1024 * 1024;
+const maxProductImages = 8;
 
 const hasExpectedSignature = (image, contentType) => {
   if (contentType === "image/jpeg") return image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff;
@@ -25,13 +26,14 @@ const hasExpectedSignature = (image, contentType) => {
 const storageObjectPath = (url) => {
   const marker = "/storage/v1/object/public/vendor-products/";
   const index = String(url || "").indexOf(marker);
-  return index === -1 ? "" : decodeURIComponent(String(url).slice(index + marker.length));
+  if (index === -1) return "";
+  try { return decodeURIComponent(String(url).slice(index + marker.length)); } catch { return ""; }
 };
 
 module.exports = async function handler(request, response) {
   try {
-    if (request.method !== "POST") {
-      response.setHeader("Allow", "POST");
+    if (!["POST", "DELETE"].includes(request.method)) {
+      response.setHeader("Allow", "POST, DELETE");
       return json(response, 405, { error: "Method not allowed." });
     }
 
@@ -40,6 +42,45 @@ module.exports = async function handler(request, response) {
     const id = Number(request.body?.id);
     if (!Number.isInteger(id) || id <= 0) return json(response, 400, { error: "Invalid product." });
 
+    const userId = encodeURIComponent(access.user.id);
+    const existingResult = await supabaseRest(
+      `vendor_products?select=id,image_url,image_urls&id=eq.${id}&vendor_user_id=eq.${userId}&limit=1`,
+    );
+    if (!existingResult.ok) throw new Error(`Unable to verify product ownership (${existingResult.status}).`);
+    const existing = (await existingResult.json())[0];
+    if (!existing) return json(response, 404, { error: "Product not found." });
+
+    const { url, key } = getConfig();
+    const currentImages = [...new Set(Array.isArray(existing.image_urls) && existing.image_urls.length
+      ? existing.image_urls
+      : existing.image_url ? [existing.image_url] : [])];
+
+    if (request.method === "DELETE") {
+      const imageUrl = String(request.body?.imageUrl || "");
+      if (!currentImages.includes(imageUrl)) return json(response, 404, { error: "Image not found." });
+      const nextImages = currentImages.filter((item) => item !== imageUrl);
+      const updateResult = await supabaseRest(
+        `vendor_products?id=eq.${id}&vendor_user_id=eq.${userId}`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify({ image_urls: nextImages, image_url: nextImages[0] || null, updated_at: new Date().toISOString() }),
+        },
+      );
+      if (!updateResult.ok) return json(response, 502, { error: "Unable to remove the product image." });
+      const objectPath = storageObjectPath(imageUrl);
+      if (objectPath) {
+        fetch(`${url}/storage/v1/object/vendor-products/${objectPath}`, {
+          method: "DELETE",
+          headers: serviceHeaders(key),
+        }).catch((error) => console.error("Unable to delete vendor product image:", error));
+      }
+      return json(response, 200, (await updateResult.json())[0]);
+    }
+
+    if (currentImages.length >= maxProductImages) {
+      return json(response, 409, { error: `A product can have up to ${maxProductImages} images.` });
+    }
     const match = /^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/.exec(String(request.body?.image || ""));
     const contentType = match?.[1];
     if (!allowedTypes[contentType]) {
@@ -53,16 +94,7 @@ module.exports = async function handler(request, response) {
       return json(response, 400, { error: "The selected file is not a valid image." });
     }
 
-    const userId = encodeURIComponent(access.user.id);
-    const existingResult = await supabaseRest(
-      `vendor_products?select=id,image_url&id=eq.${id}&vendor_user_id=eq.${userId}&limit=1`,
-    );
-    if (!existingResult.ok) throw new Error(`Unable to verify product ownership (${existingResult.status}).`);
-    const existing = (await existingResult.json())[0];
-    if (!existing) return json(response, 404, { error: "Product not found." });
-
-    const { url, key } = getConfig();
-    const objectPath = `${access.user.id}/${id}-${Date.now()}.${allowedTypes[contentType]}`;
+    const objectPath = `${access.user.id}/${id}-${Date.now()}-${Math.floor(Math.random() * 100000)}.${allowedTypes[contentType]}`;
     const uploadResult = await fetch(`${url}/storage/v1/object/vendor-products/${objectPath}`, {
       method: "POST",
       headers: serviceHeaders(key, { "Content-Type": contentType, "x-upsert": "false" }),
@@ -75,12 +107,13 @@ module.exports = async function handler(request, response) {
     }
 
     const imageUrl = `${url}/storage/v1/object/public/vendor-products/${objectPath}`;
+    const nextImages = [...currentImages, imageUrl];
     const updateResult = await supabaseRest(
       `vendor_products?id=eq.${id}&vendor_user_id=eq.${userId}`,
       {
         method: "PATCH",
         headers: { Prefer: "return=representation" },
-        body: JSON.stringify({ image_url: imageUrl, updated_at: new Date().toISOString() }),
+        body: JSON.stringify({ image_urls: nextImages, image_url: nextImages[0], updated_at: new Date().toISOString() }),
       },
     );
     if (!updateResult.ok) {
@@ -91,13 +124,6 @@ module.exports = async function handler(request, response) {
       return json(response, 502, { error: "Unable to attach the image to the product." });
     }
 
-    const oldObjectPath = storageObjectPath(existing.image_url);
-    if (oldObjectPath) {
-      fetch(`${url}/storage/v1/object/vendor-products/${oldObjectPath}`, {
-        method: "DELETE",
-        headers: serviceHeaders(key),
-      }).catch((error) => console.error("Unable to remove replaced vendor image:", error));
-    }
     return json(response, 200, (await updateResult.json())[0]);
   } catch (error) {
     console.error("Vendor product image request failed:", error);
