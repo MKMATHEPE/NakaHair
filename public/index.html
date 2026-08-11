@@ -748,6 +748,34 @@
         text-align: center;
         border: 1px solid var(--black);
       }
+      .login-help-links {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0;
+        margin: 20px -4px 0;
+      }
+      .login-help-links a {
+        position: relative;
+        padding: 3px 9px;
+        color: var(--gray);
+        font-size: 11px;
+        line-height: 1.4;
+        transition: color 0.2s ease;
+      }
+      .login-help-links a + a::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 50%;
+        width: 1px;
+        height: 12px;
+        transform: translateY(-50%);
+        background: var(--border);
+      }
+      .login-help-links a:hover {
+        color: var(--black);
+      }
       .modal-close-x {
         position: absolute;
         top: 14px;
@@ -2869,11 +2897,11 @@
         <div class="modal-actions">
           <button class="btn" onclick="submitLogin()">Sign In</button>
         </div>
-        <p class="modal-sub">
-          <a href="#" onclick="showAdminLogin(event)">Admin login</a> ·
-          <a href="#" onclick="openRegisterModal(event)">Create account</a> ·
+        <div class="login-help-links" aria-label="Login options">
+          <a href="#" onclick="showAdminLogin(event)">Admin login</a>
+          <a href="#" onclick="openRegisterModal(event)">Create account</a>
           <a href="#" onclick="forgotPassword(event)">Forgot password?</a>
-        </p>
+        </div>
       </div>
         </div>
 
