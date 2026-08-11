@@ -2851,6 +2851,9 @@
             <li>
               <a href="#terms" onclick="openInfoModal(event, 'terms')">Terms</a>
             </li>
+            <li>
+              <a href="#vendor" onclick="startVendorJourney(event)">Become a Vendor</a>
+            </li>
           </ul>
         </div>
       </div>
@@ -2898,7 +2901,6 @@
           <button class="btn" onclick="submitLogin()">Sign In</button>
         </div>
         <div class="login-help-links" aria-label="Login options">
-          <a href="#" onclick="showAdminLogin(event)">Admin login</a>
           <a href="#" onclick="openRegisterModal(event)">Create account</a>
           <a href="#" onclick="forgotPassword(event)">Forgot password?</a>
         </div>
@@ -2964,6 +2966,9 @@
         <h2>Create Account</h2>
         <p class="modal-sub">
           Create an account for faster checkout and order tracking.
+        </p>
+        <p class="modal-sub" style="margin-top: -14px">
+          Customer accounts are created here. Admin users are created securely by an existing admin.
         </p>
         <div class="modal-error" id="register-error"></div>
 
@@ -3136,6 +3141,14 @@
         >
           Reports
         </button>
+        <button
+          type="button"
+          data-admin-tab="staff"
+          onclick="loadAdminDashboard('staff')"
+        >
+          Staff
+        </button>
+        <button type="button" data-admin-tab="vendor-requests" onclick="loadAdminDashboard('vendor-requests')">Vendor Requests</button>
       </div>
       <div class="admin-dashboard-scroll">
         <div class="admin-dashboard-content" id="admin-dashboard-content"></div>
@@ -5310,13 +5323,13 @@ async function refreshAuthUI() {
     firstName: user.user_metadata?.first_name || "",
     lastName: user.user_metadata?.last_name || "",
     phone: user.user_metadata?.phone || "",
-    role: "customer",
+    role: user.user_metadata?.role === "vendor" ? "vendor" : "customer",
   };
 
   authToken = null;
   safeLocalStorageRemove("NAKA_user_token");
   safeLocalStorageRemove("NAKA_user_role");
-  currentUserRole = "customer";
+  currentUserRole = currentUser.role;
   currentUserName = currentUser.firstName || user.email;
 
   updateUserUI();
@@ -5515,13 +5528,63 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         return currentUserRole === "admin";
       }
 
+      async function getSupabaseAccessToken() {
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        return session?.access_token || "";
+      }
+
+      function startVendorJourney(event) {
+        if (event) event.preventDefault();
+        if (["customer", "vendor"].includes(currentUserRole)) {
+          openAccount(null, "vendor");
+          return;
+        }
+        openRegisterModal();
+      }
+
+      async function requestVendorApplication() {
+        const message = document.getElementById("vendor-message");
+        const button = document.querySelector('[onclick="requestVendorApplication()"]');
+        if (button) {
+          button.disabled = true;
+          button.textContent = "Sending…";
+        }
+        try {
+          const token = await getSupabaseAccessToken();
+          if (!token) throw new Error("Please sign in again before requesting the application link.");
+          const res = await fetch("/api/vendor-requests/start", { method: "POST", headers: { Authorization: "Bearer " + token } });
+          const data = await res.json().catch(() => ({}));
+          message.className = res.ok ? "modal-success" : "modal-error";
+          message.textContent = data.message || data.error || "Unable to send the vendor application link.";
+        } catch (error) {
+          message.className = "modal-error";
+          message.textContent = error.message || "Unable to send the vendor application link.";
+        } finally {
+          if (button) {
+            button.disabled = false;
+            button.textContent = "Email Me the Application Link";
+          }
+        }
+        message.style.display = "block";
+      }
+
+      async function completeVendorApplication() {
+        const message = document.getElementById("vendor-message");
+        const token = await getSupabaseAccessToken();
+        const res = await fetch("/api/vendor-requests/complete", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, body: JSON.stringify({ businessName: document.getElementById("vendor-business-name").value.trim(), phone: document.getElementById("vendor-phone").value.trim() }) });
+        const data = await res.json();
+        message.className = res.ok ? "modal-success" : "modal-error";
+        message.textContent = data.message || data.error;
+        message.style.display = "block";
+      }
+
       async function openAccount(e, tab) {
         if (e) e.preventDefault();
-        if (currentUserRole !== "customer") return;
+        if (!["customer", "vendor"].includes(currentUserRole)) return;
         const view = document.getElementById("account-view");
         view.style.display = "block";
         view.scrollIntoView({ behavior: "smooth", block: "start" });
-        const tabs = ["profile", "orders", "wishlist", "addresses"];
+        const tabs = ["profile", "orders", "wishlist", "addresses", "vendor"];
         view.innerHTML =
           '<h1>My Account</h1><p>Manage your NAKA Hair account.</p><div class="account-tabs">' +
           tabs
@@ -5537,6 +5600,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
                   orders: "My Orders",
                   wishlist: "Wishlist",
                   addresses: "Saved Addresses",
+                  vendor: "Become a Vendor",
                 }[name] +
                 "</button>",
             )
@@ -5583,6 +5647,14 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         } else if (tab === "wishlist")
           panel.innerHTML =
             '<h3>Wishlist</h3><p class="account-empty">Your saved favourites will appear here.</p>';
+        else if (tab === "vendor") {
+          panel.innerHTML =
+            '<h3>Vendor Application</h3><p class="checkout-copy">Request a secure vendor application link. Once you receive it by email, return here to complete your business details for approval.</p><button class="btn" onclick="requestVendorApplication()">Email Me the Application Link</button><div id="vendor-application-form" style="display:none; margin-top:24px"><div class="form-field"><label class="field-label">Business Name</label><input class="field-input" id="vendor-business-name"></div><div class="form-field" style="margin-top:12px"><label class="field-label">Business Phone</label><input class="field-input" id="vendor-phone"></div><div class="modal-actions"><button class="btn" onclick="completeVendorApplication()">Submit for Approval</button></div></div><p id="vendor-message" class="modal-error"></p>';
+          if (window.location.hash === "#vendor-application") {
+            document.getElementById("vendor-application-form").style.display = "block";
+            history.replaceState(null, "", window.location.pathname);
+          }
+        }
         else {
           panel.innerHTML =
             '<h3>Saved Addresses</h3><div id="saved-addresses" class="account-empty">Loading addresses…</div><h3 style="margin-top:28px">Add Address</h3><div class="form-grid"><div class="form-field"><label class="field-label">Label</label><input class="field-input" id="address-label" value="Home"></div><div class="form-field"><label class="field-label">Address</label><input class="field-input" id="address-address"></div><div class="form-field"><label class="field-label">Province</label><input class="field-input" id="address-province"></div><div class="form-field"><label class="field-label">City</label><input class="field-input" id="address-city"></div><div class="form-field"><label class="field-label">Street</label><input class="field-input" id="address-street"></div><div class="form-field"><label class="field-label">Postal Code</label><input class="field-input" id="address-postal"></div></div><div class="modal-actions"><button class="btn" onclick="saveAddress()">Save Address</button></div>';
@@ -5784,6 +5856,22 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
                 )
                 .join("") +
               "</tbody></table>";
+          } else if (tab === "vendor-requests") {
+            content.innerHTML = '<h2>Vendor Requests</h2><table class="admin-table"><thead><tr><th>Applicant</th><th>Business</th><th>Phone</th><th>Status</th><th></th></tr></thead><tbody>' + data.map((request) => '<tr><td>' + escapeAdminText(request.email) + '</td><td>' + escapeAdminText(request.business_name || "—") + '</td><td>' + escapeAdminText(request.phone || "—") + '</td><td>' + escapeAdminText(request.status) + '</td><td>' + (request.status === "pending" ? '<button class="admin-table-action" onclick="approveVendorRequest(' + request.id + ')">Approve</button>' : "") + '</td></tr>').join("") + "</tbody></table>";
+          } else if (tab === "staff") {
+            content.innerHTML =
+              '<h2>Staff Accounts</h2><p class="admin-dashboard-copy">Create admin users who can manage products, orders, customers and reports.</p><form class="form-grid" onsubmit="createAdminUser(event)"><div class="form-field"><label class="field-label">Username</label><input class="field-input" id="new-admin-username" autocomplete="username" required></div><div class="form-field"><label class="field-label">Temporary Password</label><input class="field-input" id="new-admin-password" type="password" autocomplete="new-password" minlength="8" required></div><div class="form-field full"><button class="btn" type="submit">Create Admin User</button><p class="modal-error" id="new-admin-message"></p></div></form><h3 style="margin-top:32px">Current Staff</h3><table class="admin-table"><thead><tr><th>Username</th></tr></thead><tbody>' +
+              (data.length
+                ? data
+                    .map(
+                      (staff) =>
+                        "<tr><td>" +
+                        escapeAdminText(staff.username) +
+                        "</td></tr>",
+                    )
+                    .join("")
+                : '<tr><td class="admin-dashboard-empty">No staff accounts yet.</td></tr>') +
+              "</tbody></table>";
           } else {
             content.innerHTML =
               '<h2>Reports</h2><p class="admin-dashboard-copy">Live store performance overview.</p><div class="admin-report-grid"><div class="admin-report-card"><span>Revenue</span><strong>' +
@@ -5826,6 +5914,35 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         }
       }
 
+      async function createAdminUser(event) {
+        event.preventDefault();
+        const message = document.getElementById("new-admin-message");
+        const username = document.getElementById("new-admin-username").value.trim();
+        const password = document.getElementById("new-admin-password").value;
+        message.style.display = "none";
+        try {
+          const res = await fetch("/api/admin/staff", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + authToken,
+            },
+            body: JSON.stringify({ username, password }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Unable to create admin user.");
+          loadAdminDashboard("staff");
+        } catch (error) {
+          message.textContent = error.message;
+          message.style.display = "block";
+        }
+      }
+
+      async function approveVendorRequest(id) {
+        const res = await fetch("/api/admin/vendor-requests/" + id + "/approve", { method: "POST", headers: { Authorization: "Bearer " + authToken } });
+        if (res.ok) loadAdminDashboard("vendor-requests");
+      }
+
       function updateUserUI() {
         const badgeWrap = document.getElementById("user-badge-wrap");
         const roleBadge = document.getElementById("user-role-badge");
@@ -5837,12 +5954,12 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         badgeWrap.style.display = hasSession ? "inline-flex" : "none";
         loginLink.style.display = hasSession ? "none" : "inline";
         customerMenu.style.display =
-          currentUserRole === "customer" ? "inline-flex" : "none";
+          ["customer", "vendor"].includes(currentUserRole) ? "inline-flex" : "none";
         adminLogout.style.display = isAdmin() ? "inline-block" : "none";
         dashboardButton.style.display = isAdmin() ? "inline-block" : "none";
         roleBadge.style.display = isAdmin() ? "inline-block" : "none";
         document.getElementById("customer-greeting").textContent =
-          currentUserRole === "customer"
+          ["customer", "vendor"].includes(currentUserRole)
             ? "Hi, " + (currentUserName || "there")
             : "";
         roleBadge.textContent = isAdmin() ? "Admin" : "";
@@ -6164,6 +6281,9 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         await loadProducts();
         renderBestSellers();
         await restoreCustomerOrAdminSession();
+        if (window.location.hash === "#vendor-application" && currentUser) {
+          openAccount(null, "vendor");
+        }
         if (window.location.search.includes("admin=1")) {
           showAdminLogin();
         }
