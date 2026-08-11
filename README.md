@@ -27,7 +27,7 @@ The new Next.js storefront includes:
 - Loading, error and not-found states
 - Supabase browser and server client utilities
 
-The existing account, vendor application, vendor product editor and vendor order tools remain in `public/index.html` while they are ported. The Next.js header links to that portal at `/index.html#account`, and the ownership-scoped Vercel functions remain in `api/`.
+The existing account, vendor application, vendor product editor and vendor order tools remain in `public/legacy.html` while they are ported. The Next.js header links to that portal at `/legacy.html#account`, and the ownership-scoped Vercel functions remain in `api/`.
 
 ## Local development
 
@@ -59,7 +59,7 @@ src/lib/catalog.ts       Server-only Supabase catalogue access
 src/lib/supabase/        Browser/server Supabase client factories
 src/types/               Domain models
 api/                     Existing ownership-scoped Vercel functions
-public/index.html        Legacy account/vendor UI during migration
+public/legacy.html       Legacy account/vendor UI during migration
 supabase/migrations/     Reviewed database migrations
 ```
 

@@ -35,7 +35,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               </div>
               <div className="text-sm">
                 <p className="mb-3 font-semibold uppercase tracking-wider">Account</p>
-                <div className="grid gap-2 text-primary-foreground/65"><Link href="/index.html#account">Customer account</Link><Link href="/index.html#account">Vendor portal</Link></div>
+                <div className="grid gap-2 text-primary-foreground/65"><Link href="/legacy.html#account">Customer account</Link><Link href="/legacy.html#account">Vendor portal</Link></div>
               </div>
             </div>
           </footer>

@@ -16,12 +16,12 @@ export function SiteHeader() {
         <nav className="hidden items-center gap-7 text-sm md:flex" aria-label="Primary navigation">
           <Link href="/#collections" className="transition-colors hover:text-muted-foreground">Collections</Link>
           <Link href="/#shop" className="transition-colors hover:text-muted-foreground">Shop</Link>
-          <Link href="/index.html#account" className="transition-colors hover:text-muted-foreground">Vendor portal</Link>
+          <Link href="/legacy.html#account" className="transition-colors hover:text-muted-foreground">Vendor portal</Link>
         </nav>
         <div className="flex items-center gap-1">
           <a href="#shop" className="header-action" aria-label="Search products"><Search /></a>
           <button className="header-action hidden sm:inline-flex" aria-label="Wishlist"><Heart /></button>
-          <Link href="/index.html#account" className="header-action" aria-label="My account"><UserRound /></Link>
+          <Link href="/legacy.html#account" className="header-action" aria-label="My account"><UserRound /></Link>
           <button className="header-action relative" aria-label={`Shopping bag with ${itemCount} items`}>
             <ShoppingBag />
             {itemCount > 0 && <span className="cart-count">{itemCount}</span>}
