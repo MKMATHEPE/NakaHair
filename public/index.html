@@ -3869,6 +3869,7 @@
 
       function addToCart(e) {
         if (e) e.preventDefault();
+        if (isVendorPortalMode()) return;
 
         const product = getCurrentProductSnapshot();
         if (!product) return;
@@ -3955,6 +3956,7 @@
 
       function openCart(e) {
         if (e) e.preventDefault();
+        if (isVendorPortalMode()) return;
         checkoutStep = "cart";
         deliveryError = "";
         document.getElementById("cart-overlay").classList.add("open");
@@ -3963,6 +3965,7 @@
       }
 
       function openCheckout() {
+        if (isVendorPortalMode()) return;
         if (currentUserRole === "customer" && currentUser) {
           deliveryForm.firstName =
             deliveryForm.firstName || currentUser.firstName;
@@ -4141,6 +4144,7 @@
       }
 
       function goToCheckoutStep(step) {
+        if (isVendorPortalMode()) return;
         checkoutStep = step;
         if (step === "cart") {
           renderCart();
@@ -4399,6 +4403,7 @@
       }
 
       async function placeOrder() {
+        if (isVendorPortalMode()) return;
         const totals = calculateTotals();
         try {
           const supabaseToken = await getSupabaseAccessToken();
@@ -4918,6 +4923,10 @@
       let vendorSelectedSizes = [];
       let vendorSelectedDetails = {};
       let pendingVendorImageFile = null;
+
+      function isVendorPortalMode() {
+        return currentPortal === "vendor" && !!currentUser?.isVendor;
+      }
 
       function safeLocalStorageGet(key) {
         try {
@@ -6465,6 +6474,16 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         adminLogout.style.display = isAdmin() ? "inline-block" : "none";
         dashboardButton.style.display = isAdmin() ? "inline-block" : "none";
         const isVendorPortal = currentPortal === "vendor" && currentUser?.isVendor;
+        document.querySelectorAll(".nav-cart, .col-cart-top, .pdp-cart-top").forEach((element) => {
+          element.style.display = isVendorPortal ? "none" : "";
+        });
+        const productCartButton = document.getElementById("pdp-cart-btn");
+        productCartButton.style.display = isVendorPortal ? "none" : "";
+        if (isVendorPortal) {
+          document.getElementById("cart-overlay").classList.remove("open");
+          checkoutStep = "cart";
+          updateBodyScrollLock();
+        }
         roleBadge.style.display = isAdmin() || isVendorPortal ? "inline-block" : "none";
         vendorAccountLink.style.display = currentUser?.isVendor ? "block" : "none";
         vendorProductsLink.style.display = isVendorPortal ? "block" : "none";
