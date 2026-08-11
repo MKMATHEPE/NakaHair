@@ -2658,6 +2658,10 @@
                 >Account Settings</a
               ><a href="#" id="vendor-account-link" onclick="openAccount(event, 'vendor')"
                 >Vendor Profile</a
+              ><a href="#" id="vendor-products-link" onclick="openAccount(event, 'vendor-products')"
+                >Vendor Products</a
+              ><a href="#" id="vendor-orders-link" onclick="openAccount(event, 'vendor-orders')"
+                >Vendor Orders</a
               ><button onclick="logout()">Logout</button>
             </div>
           </details>
@@ -4397,11 +4401,12 @@
       async function placeOrder() {
         const totals = calculateTotals();
         try {
+          const supabaseToken = await getSupabaseAccessToken();
           const res = await fetch("/api/orders", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              ...(authToken ? { Authorization: "Bearer " + authToken } : {}),
+              ...(supabaseToken ? { Authorization: "Bearer " + supabaseToken } : {}),
             },
             body: JSON.stringify({
               items: cartItems,
@@ -4908,6 +4913,7 @@
       let currentUser = null;
       let loginMode = "customer";
       let currentPortal = "customer";
+      let vendorProductsCache = [];
 
       function safeLocalStorageGet(key) {
         try {
@@ -5088,7 +5094,7 @@
             await refreshAuthUI();
           }
           if (loginMode === "vendor") {
-            openAccount(null, "vendor");
+            openAccount(null, "vendor-products");
           }
         } catch (err) {
           console.error("Login exception:", err);
@@ -5722,6 +5728,155 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         }
       }
 
+      function vendorProductFormMarkup() {
+        return '<form id="vendor-product-form" class="form-grid" onsubmit="saveVendorProduct(event)"><input type="hidden" id="vendor-product-id"><div class="form-field"><label class="field-label">Product Name *</label><input class="field-input" id="vendor-product-name" maxlength="160" required></div><div class="form-field"><label class="field-label">Product Type *</label><input class="field-input" id="vendor-product-type" maxlength="100" placeholder="Wig, bundle, closure…" required></div><div class="form-field"><label class="field-label">Hair Type *</label><input class="field-input" id="vendor-product-hair-type" maxlength="100" placeholder="Straight, curly, body wave…" required></div><div class="form-field"><label class="field-label">Collection *</label><select class="field-input" id="vendor-product-collection" required><option value="everyday">Everyday</option><option value="straight">Straight Hair</option><option value="bundles">Bundles</option><option value="wigs">Wigs</option></select></div><div class="form-field"><label class="field-label">Price (R) *</label><input class="field-input" id="vendor-product-price" type="number" min="0" step="0.01" required></div><div class="form-field"><label class="field-label">Old Price (R)</label><input class="field-input" id="vendor-product-old-price" type="number" min="0" step="0.01"></div><div class="form-field"><label class="field-label">Stock Quantity *</label><input class="field-input" id="vendor-product-stock" type="number" min="0" step="1" value="0" required></div><div class="form-field"><label class="field-label">Visibility *</label><select class="field-input" id="vendor-product-status" required><option value="draft">Draft</option><option value="active">Active in Store</option></select></div><div class="form-field"><label class="field-label">Tag</label><input class="field-input" id="vendor-product-tag" maxlength="50" placeholder="New, Sale…"></div><div class="form-field"><label class="field-label">Image URL</label><input class="field-input" id="vendor-product-image" type="url" maxlength="500" placeholder="https://"></div><div class="form-field full"><label class="field-label">Short Description</label><input class="field-input" id="vendor-product-short-description" maxlength="300"></div><div class="form-field full"><label class="field-label">Full Description *</label><textarea class="field-input" id="vendor-product-description" rows="5" maxlength="3000" required></textarea></div><div class="form-field full"><div class="modal-actions"><button class="btn" id="vendor-product-save" type="submit">Create Product</button><button class="btn-secondary" type="button" onclick="resetVendorProductForm()">Clear</button></div><p id="vendor-product-message" class="modal-error"></p></div></form>';
+      }
+
+      async function loadVendorProducts(panel) {
+        panel.innerHTML = '<h3>My Products</h3><p class="account-empty">Loading products…</p>';
+        try {
+          const token = await getSupabaseAccessToken();
+          if (!token) throw new Error("Please sign in again.");
+          const res = await fetch("/api/vendor/products", {
+            headers: { Authorization: "Bearer " + token },
+          });
+          const data = await res.json().catch(() => []);
+          if (!res.ok) throw new Error(data.error || "Unable to load products.");
+          vendorProductsCache = data;
+          renderVendorProducts(panel);
+        } catch (error) {
+          panel.innerHTML = '<p class="account-empty">' + escapeHtml(error.message) + '</p>';
+        }
+      }
+
+      function renderVendorProducts(panel) {
+        const rows = vendorProductsCache.length
+          ? '<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody>' +
+            vendorProductsCache.map((product) => '<tr><td><strong>' + escapeHtml(product.name) + '</strong><br><small>' + escapeHtml(product.product_type) + '</small></td><td>' + formatCurrency(Number(product.price)) + '</td><td>' + Number(product.stock_quantity) + '</td><td>' + escapeHtml(product.status) + '</td><td><button class="admin-table-action" onclick="editVendorProduct(' + Number(product.id) + ')">Edit</button> <button class="admin-table-action" onclick="deleteVendorProduct(' + Number(product.id) + ')">Delete</button></td></tr>').join('') +
+            '</tbody></table></div>'
+          : '<p class="account-empty">You have not created any products yet.</p>';
+        panel.innerHTML = '<h3>My Products</h3><p class="checkout-copy">Create and manage only the products owned by your vendor profile. Active products with stock appear in the store.</p>' + rows + '<h3 style="margin-top:32px">Add or Edit Product</h3>' + vendorProductFormMarkup();
+      }
+
+      function resetVendorProductForm() {
+        const form = document.getElementById("vendor-product-form");
+        if (!form) return;
+        form.reset();
+        document.getElementById("vendor-product-id").value = "";
+        document.getElementById("vendor-product-stock").value = "0";
+        document.getElementById("vendor-product-save").textContent = "Create Product";
+        document.getElementById("vendor-product-message").style.display = "none";
+      }
+
+      function editVendorProduct(id) {
+        const product = vendorProductsCache.find((item) => Number(item.id) === Number(id));
+        if (!product) return;
+        document.getElementById("vendor-product-id").value = product.id;
+        document.getElementById("vendor-product-name").value = product.name || "";
+        document.getElementById("vendor-product-type").value = product.product_type || "";
+        document.getElementById("vendor-product-hair-type").value = product.hair_type || "";
+        document.getElementById("vendor-product-collection").value = product.collection || "everyday";
+        document.getElementById("vendor-product-price").value = product.price || "";
+        document.getElementById("vendor-product-old-price").value = product.old_price || "";
+        document.getElementById("vendor-product-stock").value = product.stock_quantity ?? 0;
+        document.getElementById("vendor-product-status").value = product.status || "draft";
+        document.getElementById("vendor-product-tag").value = product.tag || "";
+        document.getElementById("vendor-product-image").value = product.image_url || "";
+        document.getElementById("vendor-product-short-description").value = product.short_description || "";
+        document.getElementById("vendor-product-description").value = product.description || "";
+        document.getElementById("vendor-product-save").textContent = "Update Product";
+        document.getElementById("vendor-product-form").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      async function saveVendorProduct(event) {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const message = document.getElementById("vendor-product-message");
+        message.style.display = "none";
+        if (!form.reportValidity()) return;
+        const id = document.getElementById("vendor-product-id").value;
+        const payload = {
+          ...(id ? { id: Number(id) } : {}),
+          name: document.getElementById("vendor-product-name").value.trim(),
+          productType: document.getElementById("vendor-product-type").value.trim(),
+          hairType: document.getElementById("vendor-product-hair-type").value.trim(),
+          collection: document.getElementById("vendor-product-collection").value,
+          price: document.getElementById("vendor-product-price").value,
+          oldPrice: document.getElementById("vendor-product-old-price").value,
+          stockQuantity: document.getElementById("vendor-product-stock").value,
+          status: document.getElementById("vendor-product-status").value,
+          tag: document.getElementById("vendor-product-tag").value.trim(),
+          imageUrl: document.getElementById("vendor-product-image").value.trim(),
+          shortDescription: document.getElementById("vendor-product-short-description").value.trim(),
+          description: document.getElementById("vendor-product-description").value.trim(),
+        };
+        try {
+          const token = await getSupabaseAccessToken();
+          const res = await fetch("/api/vendor/products", {
+            method: id ? "PATCH" : "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Unable to save product.");
+          await loadProducts();
+          renderBestSellers();
+          openAccount(null, "vendor-products");
+        } catch (error) {
+          message.textContent = error.message;
+          message.style.display = "block";
+        }
+      }
+
+      async function deleteVendorProduct(id) {
+        if (!window.confirm("Delete this product? This cannot be undone.")) return;
+        try {
+          const token = await getSupabaseAccessToken();
+          const res = await fetch("/api/vendor/products?id=" + encodeURIComponent(id), {
+            method: "DELETE",
+            headers: { Authorization: "Bearer " + token },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Unable to delete product.");
+          openAccount(null, "vendor-products");
+        } catch (error) {
+          window.alert(error.message);
+        }
+      }
+
+      async function loadVendorOrders(panel) {
+        panel.innerHTML = '<h3>My Orders</h3><p class="account-empty">Loading vendor orders…</p>';
+        try {
+          const token = await getSupabaseAccessToken();
+          if (!token) throw new Error("Please sign in again.");
+          const res = await fetch("/api/vendor/orders", {
+            headers: { Authorization: "Bearer " + token },
+          });
+          const orders = await res.json().catch(() => []);
+          if (!res.ok) throw new Error(orders.error || "Unable to load vendor orders.");
+          const statusOptions = ["Order received", "Processing", "Ready for dispatch", "Dispatched", "Completed", "Cancelled"];
+          panel.innerHTML = '<h3>My Orders</h3><p class="checkout-copy">Only orders containing products owned by your vendor profile appear here.</p>' + (orders.length ? '<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Order</th><th>Customer & Delivery</th><th>Your Items</th><th>Subtotal</th><th>Status</th></tr></thead><tbody>' + orders.map((order) => '<tr><td><strong>' + escapeHtml(order.order_number) + '</strong><br><small>' + new Date(order.created_at).toLocaleDateString() + '</small></td><td>' + escapeHtml(order.customer_email) + '<br>' + escapeHtml(order.customer_phone) + '<br><small>' + escapeHtml(order.delivery_address) + '</small></td><td>' + (order.items || []).map((item) => escapeHtml(item.quantity + ' × ' + item.name)).join('<br>') + '</td><td>' + formatCurrency(Number(order.subtotal)) + '</td><td><select onchange="updateVendorOrderStatus(' + Number(order.id) + ', this.value)">' + statusOptions.map((status) => '<option' + (order.status === status ? ' selected' : '') + '>' + status + '</option>').join('') + '</select></td></tr>').join('') + '</tbody></table></div>' : '<p class="account-empty">No orders for your products yet.</p>');
+        } catch (error) {
+          panel.innerHTML = '<p class="account-empty">' + escapeHtml(error.message) + '</p>';
+        }
+      }
+
+      async function updateVendorOrderStatus(id, status) {
+        try {
+          const token = await getSupabaseAccessToken();
+          const res = await fetch("/api/vendor/orders", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+            body: JSON.stringify({ id, status }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Unable to update order.");
+        } catch (error) {
+          window.alert(error.message);
+          openAccount(null, "vendor-orders");
+        }
+      }
+
       async function openAccount(e, tab) {
         if (e) e.preventDefault();
         if (!["customer", "vendor"].includes(currentUserRole)) return;
@@ -5730,7 +5885,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         view.scrollIntoView({ behavior: "smooth", block: "start" });
         const isVendorPortal = currentPortal === "vendor" && currentUser?.isVendor;
         const tabs = isVendorPortal
-          ? ["vendor", "profile"]
+          ? ["vendor-products", "vendor-orders", "vendor", "profile"]
           : ["profile", "orders", "wishlist", "addresses", "vendor"];
         view.innerHTML =
           '<h1>' +
@@ -5754,13 +5909,19 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
                   wishlist: "Wishlist",
                   addresses: "Saved Addresses",
                   vendor: "Become a Vendor",
+                  "vendor-products": "My Products",
+                  "vendor-orders": "My Orders",
                 }[name] +
                 "</button>",
             )
             .join("") +
           '</div><div class="account-panel" id="account-panel"></div>';
         const panel = document.getElementById("account-panel");
-        if (tab === "profile") {
+        if (tab === "vendor-products" && isVendorPortal) {
+          await loadVendorProducts(panel);
+        } else if (tab === "vendor-orders" && isVendorPortal) {
+          await loadVendorOrders(panel);
+        } else if (tab === "profile") {
           panel.innerHTML =
             '<h3>My Profile</h3><div class="form-grid"><div class="form-field"><label class="field-label">First Name</label><input class="field-input" id="account-first" value="' +
             escapeHtml(currentUser.firstName) +
@@ -5773,8 +5934,9 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           panel.innerHTML =
             '<h3>My Orders</h3><p class="account-empty">Loading orders…</p>';
           try {
+            const token = await getSupabaseAccessToken();
             const res = await fetch("/api/orders", {
-              headers: { Authorization: "Bearer " + authToken },
+              headers: { Authorization: "Bearer " + token },
             });
             const orders = await res.json();
             panel.innerHTML =
@@ -6110,6 +6272,8 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         const vendorLoginLink = document.getElementById("vendor-login-nav-link");
         const customerMenu = document.getElementById("customer-menu");
         const vendorAccountLink = document.getElementById("vendor-account-link");
+        const vendorProductsLink = document.getElementById("vendor-products-link");
+        const vendorOrdersLink = document.getElementById("vendor-orders-link");
         const adminLogout = document.getElementById("admin-logout");
         const dashboardButton = document.getElementById("admin-dashboard-btn");
         const hasSession = !!currentUserRole;
@@ -6123,6 +6287,8 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         const isVendorPortal = currentPortal === "vendor" && currentUser?.isVendor;
         roleBadge.style.display = isAdmin() || isVendorPortal ? "inline-block" : "none";
         vendorAccountLink.style.display = currentUser?.isVendor ? "block" : "none";
+        vendorProductsLink.style.display = isVendorPortal ? "block" : "none";
+        vendorOrdersLink.style.display = isVendorPortal ? "block" : "none";
         document.getElementById("customer-greeting").textContent =
           ["customer", "vendor"].includes(currentUserRole)
             ? isVendorPortal
