@@ -2556,6 +2556,13 @@
       window.supabaseClient = window.supabase.createClient(
         SUPABASE_URL,
         SUPABASE_PUBLISHABLE_KEY,
+        {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+          },
+        },
       );
     </script>
   </head>
@@ -5256,8 +5263,9 @@ function continueShoppingAfterRegister() {
 
 async function refreshAuthUI() {
   const {
-    data: { user },
-  } = await window.supabaseClient.auth.getUser();
+    data: { session },
+  } = await window.supabaseClient.auth.getSession();
+  const user = session?.user;
 
   if (!user) {
     authToken = null;
@@ -5286,13 +5294,28 @@ async function refreshAuthUI() {
   updateUserUI();
 }
 
+async function restoreCustomerOrAdminSession() {
+  try {
+    const {
+      data: { session },
+    } = await window.supabaseClient.auth.getSession();
+    if (session?.user) {
+      await refreshAuthUI();
+      return;
+    }
+  } catch (error) {
+    console.warn("Unable to restore customer session:", error);
+  }
+  await restoreAdminSession();
+}
+
 window.supabaseClient.auth.onAuthStateChange(async (event) => {
   if (event === "PASSWORD_RECOVERY") {
     setTimeout(openResetPasswordModal, 0);
     return;
   }
 
-  if (event === "SIGNED_IN") {
+  if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
     await refreshAuthUI();
   }
 
@@ -6113,7 +6136,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
       (async function init() {
         await loadProducts();
         renderBestSellers();
-        await restoreAdminSession();
+        await restoreCustomerOrAdminSession();
         if (window.location.search.includes("admin=1")) {
           showAdminLogin();
         }
