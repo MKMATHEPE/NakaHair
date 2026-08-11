@@ -81,23 +81,9 @@ module.exports = async function handler(request, response) {
       return json(response, 502, { error: "Unable to save your vendor profile right now." });
     }
 
-    const profileResponse = await fetch(
-      `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}`,
-      {
-        method: "PATCH",
-        headers: { ...serverHeaders, Prefer: "return=minimal" },
-        body: JSON.stringify({ role: "vendor", phone }),
-      },
-    );
-
-    if (!profileResponse.ok) {
-      const errorBody = await profileResponse.text();
-      console.error("Unable to assign vendor role:", profileResponse.status, errorBody);
-      return json(response, 502, { error: "Your application was saved, but the vendor role could not be assigned." });
-    }
-
     return json(response, 200, {
-      role: "vendor",
+      customer: true,
+      vendor: true,
       message: "Your vendor profile is ready.",
     });
   } catch (error) {
