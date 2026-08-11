@@ -5593,6 +5593,13 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
       async function completeVendorApplication() {
         const message = document.getElementById("vendor-message");
         try {
+          const applicationForm = document.getElementById("vendor-application-form");
+          const fields = applicationForm ? [...applicationForm.querySelectorAll("input, select, textarea")] : [];
+          const invalidField = fields.find((field) => !field.checkValidity());
+          if (invalidField) {
+            invalidField.reportValidity();
+            throw new Error("Please complete all required business fields correctly.");
+          }
           const token = await getSupabaseAccessToken();
           if (!token) throw new Error("Please sign in again before creating your vendor profile.");
           const res = await fetch("/api/vendor-requests/complete", {
@@ -5603,7 +5610,18 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
             },
             body: JSON.stringify({
               businessName: document.getElementById("vendor-business-name").value.trim(),
+              contactName: document.getElementById("vendor-contact-name").value.trim(),
               phone: document.getElementById("vendor-phone").value.trim(),
+              businessType: document.getElementById("vendor-business-type").value,
+              registrationNumber: document.getElementById("vendor-registration-number").value.trim(),
+              taxNumber: document.getElementById("vendor-tax-number").value.trim(),
+              websiteUrl: document.getElementById("vendor-website-url").value.trim(),
+              socialMediaUrl: document.getElementById("vendor-social-media-url").value.trim(),
+              streetAddress: document.getElementById("vendor-street-address").value.trim(),
+              city: document.getElementById("vendor-city").value.trim(),
+              province: document.getElementById("vendor-province").value.trim(),
+              postalCode: document.getElementById("vendor-postal-code").value.trim(),
+              businessDescription: document.getElementById("vendor-business-description").value.trim(),
             }),
           });
           const data = await res.json().catch(() => ({}));
@@ -5696,7 +5714,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
               '<h3>Vendor Profile</h3><p class="checkout-copy">Your vendor profile is active.</p><p id="vendor-message" class="modal-success"></p>';
           } else {
             panel.innerHTML =
-              '<h3>Vendor Application</h3><p class="checkout-copy">Request a secure vendor application link. Once you receive it by email, return here to complete your business details and activate your vendor profile.</p><button class="btn" onclick="requestVendorApplication()">Email Me the Application Link</button><div id="vendor-application-form" style="display:none; margin-top:24px"><div class="form-field"><label class="field-label">Business Name</label><input class="field-input" id="vendor-business-name"></div><div class="form-field" style="margin-top:12px"><label class="field-label">Business Phone</label><input class="field-input" id="vendor-phone"></div><div class="modal-actions"><button class="btn" onclick="completeVendorApplication()">Create Vendor Profile</button></div></div><p id="vendor-message" class="modal-error"></p>';
+              '<h3>Vendor Application</h3><p class="checkout-copy">Request a secure vendor application link. Once you receive it by email, return here to complete your business details and activate your vendor profile.</p><button class="btn" onclick="requestVendorApplication()">Email Me the Application Link</button><div id="vendor-application-form" style="display:none; margin-top:24px"><div class="form-grid"><div class="form-field"><label class="field-label">Business Name *</label><input class="field-input" id="vendor-business-name" maxlength="160" required></div><div class="form-field"><label class="field-label">Contact Person *</label><input class="field-input" id="vendor-contact-name" maxlength="120" required></div><div class="form-field"><label class="field-label">Business Phone *</label><input class="field-input" id="vendor-phone" type="tel" maxlength="50" required></div><div class="form-field"><label class="field-label">Business Type *</label><select class="field-input" id="vendor-business-type" required><option value="">Select a type</option><option value="salon">Salon</option><option value="stylist">Hair Stylist</option><option value="retailer">Retailer</option><option value="wholesaler">Wholesaler</option><option value="online-store">Online Store</option><option value="other">Other</option></select></div><div class="form-field"><label class="field-label">Registration Number</label><input class="field-input" id="vendor-registration-number" maxlength="100"></div><div class="form-field"><label class="field-label">Tax / VAT Number</label><input class="field-input" id="vendor-tax-number" maxlength="100"></div><div class="form-field"><label class="field-label">Website</label><input class="field-input" id="vendor-website-url" type="url" maxlength="500" placeholder="https://"></div><div class="form-field"><label class="field-label">Social Profile</label><input class="field-input" id="vendor-social-media-url" type="url" maxlength="500" placeholder="https://"></div><div class="form-field full"><label class="field-label">Street Address *</label><input class="field-input" id="vendor-street-address" maxlength="200" required></div><div class="form-field"><label class="field-label">City *</label><input class="field-input" id="vendor-city" maxlength="100" required></div><div class="form-field"><label class="field-label">Province *</label><select class="field-input" id="vendor-province" required><option value="">Select a province</option><option>Eastern Cape</option><option>Free State</option><option>Gauteng</option><option>KwaZulu-Natal</option><option>Limpopo</option><option>Mpumalanga</option><option>North West</option><option>Northern Cape</option><option>Western Cape</option></select></div><div class="form-field"><label class="field-label">Postal Code *</label><input class="field-input" id="vendor-postal-code" maxlength="20" inputmode="numeric" required></div><div class="form-field full"><label class="field-label">Tell Us About Your Business *</label><textarea class="field-input" id="vendor-business-description" rows="5" maxlength="2000" placeholder="Describe your services, customers, and the hair products you are interested in." required></textarea></div></div><div class="modal-actions"><button class="btn" onclick="completeVendorApplication()">Create Vendor Profile</button></div></div><p id="vendor-message" class="modal-error"></p>';
           }
           if (!currentUser?.isVendor && window.location.hash === "#vendor-application") {
             document.getElementById("vendor-application-form").style.display = "block";
