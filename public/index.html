@@ -2868,7 +2868,59 @@
           <a href="#" onclick="forgotPassword(event)">Forgot password?</a>
         </p>
       </div>
+        </div>
+
+    <!-- ── RESET PASSWORD MODAL ── -->
+    <div class="modal-overlay" id="reset-password-modal">
+      <div class="modal-box">
+        <button
+          class="modal-close-x"
+          onclick="closeResetPasswordModal()"
+          aria-label="Close"
+        >
+          &times;
+        </button>
+
+        <h2>Reset Password</h2>
+
+        <p class="modal-sub">
+          Enter a new password for your NAKA Hair account.
+        </p>
+
+        <div class="modal-error" id="reset-password-error"></div>
+
+        <div class="modal-field">
+          <label>New Password</label>
+          <input
+            type="password"
+            id="reset-password"
+            autocomplete="new-password"
+          />
+        </div>
+
+        <div class="modal-field">
+          <label>Confirm New Password</label>
+          <input
+            type="password"
+            id="reset-password-confirm"
+            autocomplete="new-password"
+            onkeydown="if (event.key === 'Enter') updatePassword();"
+          />
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn" type="button" onclick="updatePassword()">
+            Update Password
+          </button>
+        </div>
+
+        <div
+          class="modal-success"
+          id="reset-password-success"
+        ></div>
+      </div>
     </div>
+
     <div class="modal-overlay" id="register-modal">
       <div class="modal-box">
         <button class="modal-close-x" onclick="closeRegisterModal()">
@@ -5254,6 +5306,11 @@ async function refreshAuthUI() {
 }
 
 window.supabaseClient.auth.onAuthStateChange(async (event) => {
+  if (event === "PASSWORD_RECOVERY") {
+    setTimeout(openResetPasswordModal, 0);
+    return;
+  }
+
   if (event === "SIGNED_IN") {
     await refreshAuthUI();
   }
@@ -5299,7 +5356,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
   try {
     const { error } =
       await window.supabaseClient.auth.resetPasswordForEmail(email, {
-        redirectTo: "https://naka-hair.vercel.app/",
+        redirectTo: window.location.origin + window.location.pathname,
       });
 
     if (error) {
@@ -5319,6 +5376,58 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
     errorEl.style.display = "block";
   }
 }
+
+      function openResetPasswordModal() {
+        closeLoginModal();
+        const errorEl = document.getElementById("reset-password-error");
+        const successEl = document.getElementById("reset-password-success");
+        errorEl.textContent = "";
+        errorEl.style.display = "none";
+        successEl.textContent = "";
+        successEl.style.display = "none";
+        document.getElementById("reset-password").value = "";
+        document.getElementById("reset-password-confirm").value = "";
+        document.getElementById("reset-password-modal").classList.add("open");
+        document.getElementById("reset-password").focus();
+      }
+
+      function closeResetPasswordModal() {
+        document.getElementById("reset-password-modal").classList.remove("open");
+      }
+
+      async function updatePassword() {
+        const password = document.getElementById("reset-password").value;
+        const confirmPassword = document.getElementById("reset-password-confirm").value;
+        const errorEl = document.getElementById("reset-password-error");
+        const successEl = document.getElementById("reset-password-success");
+        errorEl.textContent = "";
+        errorEl.style.display = "none";
+        successEl.textContent = "";
+        successEl.style.display = "none";
+
+        if (password.length < 8) {
+          errorEl.textContent = "Your new password must be at least 8 characters.";
+          errorEl.style.display = "block";
+          return;
+        }
+        if (password !== confirmPassword) {
+          errorEl.textContent = "Your passwords do not match.";
+          errorEl.style.display = "block";
+          return;
+        }
+
+        try {
+          const { error } = await window.supabaseClient.auth.updateUser({ password });
+          if (error) throw error;
+          successEl.textContent = "Password updated successfully. You can now continue using your account.";
+          successEl.style.display = "block";
+          document.getElementById("reset-password").value = "";
+          document.getElementById("reset-password-confirm").value = "";
+        } catch (error) {
+          errorEl.textContent = error.message || "Your reset link has expired. Please request a new password reset email.";
+          errorEl.style.display = "block";
+        }
+      }
 
       function logout() {
         if (authToken && currentUserRole === "customer")
