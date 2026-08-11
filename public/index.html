@@ -4872,6 +4872,9 @@
         document.querySelector("#login-modal h2").textContent = "Login";
         document.querySelector("#login-modal .modal-sub").textContent =
           "Sign in to your NAKA Hair account.";
+        document.querySelector("#login-modal label").textContent = "Email";
+        document.getElementById("login-username").type = "email";
+        document.getElementById("login-username").autocomplete = "email";
         document.getElementById("login-error").style.display = "none";
         document.getElementById("login-username").value = "";
         document.getElementById("login-password").value = "";
@@ -4885,6 +4888,10 @@
         document.querySelector("#login-modal h2").textContent = "Admin Login";
         document.querySelector("#login-modal .modal-sub").textContent =
           "Sign in to manage products, prices, and images.";
+        document.querySelector("#login-modal label").textContent = "Username";
+        document.getElementById("login-username").type = "text";
+        document.getElementById("login-username").autocomplete = "username";
+        document.getElementById("login-error").style.display = "none";
       }
       function closeLoginModal() {
         document.getElementById("login-modal").classList.remove("open");
@@ -4929,6 +4936,7 @@
       }
 
       async function submitLogin() {
+        if (loginMode === "admin") return submitAdminLogin();
         const emailInput = document.getElementById("login-username");
         const passwordInput = document.getElementById("login-password");
         const errorEl = document.getElementById("login-error");
@@ -4972,8 +4980,6 @@
   errorEl.style.display = "block";
   return;
 }
-
-          console.log("Login successful:", data);
 
           closeLoginModal();
 
@@ -5246,34 +5252,6 @@ function continueShoppingAfterRegister() {
     registerError.textContent = "";
     registerError.style.display = "none";
   }
-  async function refreshAuthUI() {
-  const {
-    data: { user },
-  } = await window.supabaseClient.auth.getUser();
-
-  if (!user) {
-    authToken = null;
-    currentUser = null;
-    currentUserRole = null;
-    currentUserName = null;
-    updateUserUI();
-    return;
-  }
-
-  currentUser = {
-    id: user.id,
-    email: user.email,
-    firstName: user.user_metadata?.first_name || "",
-    lastName: user.user_metadata?.last_name || "",
-    phone: user.user_metadata?.phone || "",
-    role: "customer",
-  };
-
-  currentUserRole = "customer";
-  currentUserName = currentUser.firstName || user.email;
-
-  updateUserUI();
-}
 }
 
 async function refreshAuthUI() {
@@ -5299,6 +5277,9 @@ async function refreshAuthUI() {
     role: "customer",
   };
 
+  authToken = null;
+  safeLocalStorageRemove("NAKA_user_token");
+  safeLocalStorageRemove("NAKA_user_role");
   currentUserRole = "customer";
   currentUserName = currentUser.firstName || user.email;
 
@@ -5435,6 +5416,9 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
             method: "POST",
             headers: { Authorization: "Bearer " + authToken },
           }).catch(() => {});
+        if (currentUserRole === "customer") {
+          window.supabaseClient.auth.signOut().catch(() => {});
+        }
         authToken = null;
         currentUserRole = null;
         currentUserName = null;
