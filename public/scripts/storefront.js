@@ -1398,6 +1398,62 @@
       let pendingVendorImageFiles = [];
       let vendorProductImages = [];
 
+      const accountPageRoutes = {
+        "/account/orders": { tab: "orders", portal: "customer" },
+        "/account/wishlist": { tab: "wishlist", portal: "customer" },
+        "/account/addresses": { tab: "addresses", portal: "customer" },
+        "/account/settings": { tab: "profile", portal: "customer" },
+        "/vendor/profile": { tab: "vendor", portal: "vendor" },
+        "/vendor/products": { tab: "vendor-products", portal: "vendor" },
+        "/vendor/orders": { tab: "vendor-orders", portal: "vendor" },
+      };
+
+      const accountTabRoutes = Object.fromEntries(
+        Object.entries(accountPageRoutes).map(([route, config]) => [
+          config.tab,
+          route,
+        ]),
+      );
+
+      function currentAccountRoute() {
+        const pathname = window.location.pathname.replace(/\/$/, "") || "/";
+        return accountPageRoutes[pathname] || null;
+      }
+
+      function showAccountRoute() {
+        const route = currentAccountRoute();
+        if (!route) return false;
+
+        if (!currentUser) {
+          if (route.portal === "vendor") openVendorLoginModal(null);
+          else openLoginModal(null);
+          return true;
+        }
+
+        if (route.portal === "vendor" && !currentUser.isVendor) {
+          currentPortal = "customer";
+          safeLocalStorageSet("NAKA_portal_mode", "customer");
+          if (route.tab !== "vendor") {
+            history.replaceState(null, "", "/vendor/profile");
+          }
+          openAccount(null, "vendor", true);
+          return true;
+        }
+
+        currentPortal = route.portal;
+        safeLocalStorageSet("NAKA_portal_mode", route.portal);
+        updateUserUI();
+        openAccount(null, route.tab, true);
+        return true;
+      }
+
+      window.addEventListener("popstate", () => {
+        if (!showAccountRoute()) {
+          const view = document.getElementById("account-view");
+          if (view) view.style.display = "none";
+        }
+      });
+
       function isVendorPortalMode() {
         return currentPortal === "vendor" && !!currentUser?.isVendor;
       }
@@ -1949,6 +2005,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
   if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
     await refreshAuthUI();
     openVendorApplicationFromEmail();
+    showAccountRoute();
   }
 
   if (event === "SIGNED_OUT") {
@@ -2086,6 +2143,12 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         safeLocalStorageRemove("NAKA_user_role");
         safeLocalStorageRemove("NAKA_portal_mode");
         updateUserUI();
+        if (currentAccountRoute()) {
+          history.replaceState(null, "", "/");
+          const view = document.getElementById("account-view");
+          if (view) view.style.display = "none";
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
       }
 
       async function restoreAdminSession() {
@@ -2581,9 +2644,22 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         }
       }
 
-      async function openAccount(e, tab) {
+      async function openAccount(e, tab, skipRouteUpdate) {
         if (e) e.preventDefault();
         if (!["customer", "vendor"].includes(currentUserRole)) return;
+        const routePath = accountTabRoutes[tab];
+        if (!skipRouteUpdate && routePath) {
+          const route = accountPageRoutes[routePath];
+          if (route.portal === "vendor" && currentUser?.isVendor) {
+            currentPortal = "vendor";
+            safeLocalStorageSet("NAKA_portal_mode", "vendor");
+          } else {
+            currentPortal = "customer";
+            safeLocalStorageSet("NAKA_portal_mode", "customer");
+          }
+          history.pushState(null, "", routePath);
+          updateUserUI();
+        }
         const view = document.getElementById("account-view");
         view.style.display = "block";
         view.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2602,7 +2678,9 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           tabs
             .map(
               (name) =>
-                '<button class="' +
+                '<a href="' +
+                accountTabRoutes[name] +
+                '" class="' +
                 (tab === name ? "active" : "") +
                 '" onclick="openAccount(event, \'' +
                 name +
@@ -2616,7 +2694,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
                   "vendor-products": "My Products",
                   "vendor-orders": "My Orders",
                 }[name] +
-                "</button>",
+                "</a>",
             )
             .join("") +
           '</div><div class="account-panel" id="account-panel"></div>';
@@ -3342,6 +3420,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         if (window.location.hash === "#vendor-application" && currentUser) {
           openAccount(null, "vendor");
         }
+        showAccountRoute();
         if (window.location.search.includes("admin=1")) {
           showAdminLogin();
         }

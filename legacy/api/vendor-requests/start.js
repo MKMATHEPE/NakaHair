@@ -64,7 +64,7 @@ module.exports = async function handler(request, response) {
         options: {
           // Supabase's implicit auth flow uses the URL fragment for session
           // tokens, so keep our application destination in the query string.
-          email_redirect_to: `${appUrl}/?vendor_application=1`,
+          email_redirect_to: `${appUrl}/vendor/profile?vendor_application=1`,
         },
       }),
     });
