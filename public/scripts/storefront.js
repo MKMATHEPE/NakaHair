@@ -2521,7 +2521,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
             }).join('') +
             '</tbody></table></div>'
           : '<p class="account-empty">You have not created any products yet.</p>';
-        panel.innerHTML = '<h3>My Products</h3><p class="checkout-copy">Create and manage only the products owned by your vendor profile. Active products with stock appear in the store.</p><div class="vendor-product-toolbar"><button type="button" class="btn" onclick="openNewVendorProductEditor()">+ Add New Product</button></div>' + rows + '<div id="vendor-product-editor-wrap" hidden><h3 style="margin-top:32px">Product Editor</h3>' + vendorProductFormMarkup() + '</div>';
+        panel.innerHTML = '<div class="vendor-products-heading"><div class="vendor-products-heading-copy"><h3>My Products</h3><p class="checkout-copy">Create and manage only the products owned by your vendor profile. Active products with stock appear in the store.</p></div><button type="button" class="admin-table-action vendor-add-product-button" onclick="openNewVendorProductEditor()">+ Add Product</button></div>' + rows + '<div id="vendor-product-editor-wrap" hidden><h3 style="margin-top:32px">Product Editor</h3>' + vendorProductFormMarkup() + '</div>';
         resetVendorProductForm();
       }
 
