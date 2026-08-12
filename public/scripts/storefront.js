@@ -1390,6 +1390,7 @@
       let currentUserName = null;
       let currentUser = null;
       let loginMode = "customer";
+      let loginSubmissionInProgress = false;
       let currentPortal = "customer";
       let vendorProductsCache = [];
       let vendorSelectedHairOrigins = [];
@@ -1440,10 +1441,25 @@
           return true;
         }
 
-        currentPortal = route.portal;
-        safeLocalStorageSet("NAKA_portal_mode", route.portal);
+        if (route.portal === "vendor" && currentPortal !== "vendor") {
+          window.location.replace("/account/settings");
+          return true;
+        }
+
+        if (route.portal === "customer" && currentPortal === "vendor") {
+          window.location.replace("/vendor/products");
+          return true;
+        }
+
         updateUserUI();
         openAccount(null, route.tab, true);
+        return true;
+      }
+
+      function enforceVendorLanding() {
+        if (!isVendorPortalMode()) return false;
+        if (window.location.pathname.startsWith("/vendor/")) return false;
+        window.location.replace("/vendor/products");
         return true;
       }
 
@@ -1589,6 +1605,7 @@
             currentPortal = "customer";
             safeLocalStorageSet("NAKA_portal_mode", "customer");
           }
+          loginSubmissionInProgress = true;
           const { data, error } =
             await window.supabaseClient.auth.signInWithPassword({
               email,
@@ -1637,7 +1654,7 @@
             await refreshAuthUI();
           }
           if (loginMode === "vendor") {
-            openAccount(null, "vendor-products");
+            window.location.assign("/vendor/products");
           }
         } catch (err) {
           console.error("Login exception:", err);
@@ -1646,6 +1663,8 @@
             err?.message || "Unable to sign in. Please try again.";
 
           errorEl.style.display = "block";
+        } finally {
+          loginSubmissionInProgress = false;
         }
       }
       function openRegisterModal(e) {
@@ -2003,7 +2022,9 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
   }
 
   if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
+    if (event === "SIGNED_IN" && loginSubmissionInProgress) return;
     await refreshAuthUI();
+    if (enforceVendorLanding()) return;
     openVendorApplicationFromEmail();
     showAccountRoute();
   }
@@ -2193,7 +2214,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
       function startVendorJourney(event) {
         if (event) event.preventDefault();
         if (["customer", "vendor"].includes(currentUserRole)) {
-          openAccount(null, "vendor");
+          window.location.assign("/vendor/profile");
           return;
         }
         openRegisterModal();
@@ -2265,12 +2286,14 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || "Unable to create your vendor profile.");
+          currentPortal = "customer";
+          safeLocalStorageSet("NAKA_portal_mode", "customer");
           await refreshAuthUI();
-          openAccount(null, "vendor");
-          const refreshedMessage = document.getElementById("vendor-message");
-          refreshedMessage.className = "modal-success";
-          refreshedMessage.textContent = data.message || "Your vendor profile is ready.";
-          refreshedMessage.style.display = "block";
+          message.className = "modal-success";
+          message.textContent =
+            (data.message || "Your vendor profile is ready.") +
+            " Log out, then use Vendor Login to open your management dashboard.";
+          message.style.display = "block";
         } catch (error) {
           message.className = "modal-error";
           message.textContent = error.message || "Unable to create your vendor profile.";
@@ -2650,12 +2673,13 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         const routePath = accountTabRoutes[tab];
         if (!skipRouteUpdate && routePath) {
           const route = accountPageRoutes[routePath];
-          if (route.portal === "vendor" && currentUser?.isVendor) {
-            currentPortal = "vendor";
-            safeLocalStorageSet("NAKA_portal_mode", "vendor");
-          } else {
-            currentPortal = "customer";
-            safeLocalStorageSet("NAKA_portal_mode", "customer");
+          const openingVendorApplication =
+            tab === "vendor" && !currentUser?.isVendor;
+          if (
+            (route.portal === "vendor" && currentPortal !== "vendor" && !openingVendorApplication) ||
+            (route.portal === "customer" && currentPortal === "vendor")
+          ) {
+            return;
           }
           history.pushState(null, "", routePath);
           updateUserUI();
@@ -2665,8 +2689,14 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         view.scrollIntoView({ behavior: "smooth", block: "start" });
         const isVendorPortal = currentPortal === "vendor" && currentUser?.isVendor;
         const tabs = isVendorPortal
-          ? ["vendor-products", "vendor-orders", "vendor", "profile"]
-          : ["profile", "orders", "wishlist", "addresses", "vendor"];
+          ? ["vendor-products", "vendor-orders", "vendor"]
+          : [
+              "profile",
+              "orders",
+              "wishlist",
+              "addresses",
+              ...(currentUser?.isVendor ? [] : ["vendor"]),
+            ];
         view.innerHTML =
           '<h1>' +
           (isVendorPortal ? "Vendor Dashboard" : "My Account") +
@@ -2690,7 +2720,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
                   orders: "My Orders",
                   wishlist: "Wishlist",
                   addresses: "Saved Addresses",
-                  vendor: "Become a Vendor",
+                  vendor: isVendorPortal ? "Vendor Profile" : "Become a Vendor",
                   "vendor-products": "My Products",
                   "vendor-orders": "My Orders",
                 }[name] +
@@ -3053,6 +3083,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         const loginLink = document.getElementById("login-nav-link");
         const vendorLoginLink = document.getElementById("vendor-login-nav-link");
         const customerMenu = document.getElementById("customer-menu");
+        const vendorManagementNav = document.getElementById("vendor-management-nav");
         const vendorAccountLink = document.getElementById("vendor-account-link");
         const vendorProductsLink = document.getElementById("vendor-products-link");
         const vendorOrdersLink = document.getElementById("vendor-orders-link");
@@ -3062,12 +3093,15 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         badgeWrap.style.display = hasSession ? "inline-flex" : "none";
         loginLink.style.display = hasSession ? "none" : "inline";
         vendorLoginLink.style.display = hasSession ? "none" : "inline";
+        const isVendorPortal = currentPortal === "vendor" && currentUser?.isVendor;
         customerMenu.style.display =
-          ["customer", "vendor"].includes(currentUserRole) ? "inline-flex" : "none";
+          ["customer", "vendor"].includes(currentUserRole) && !isVendorPortal
+            ? "inline-flex"
+            : "none";
+        vendorManagementNav.style.display = isVendorPortal ? "inline-flex" : "none";
         adminLogout.style.display = isAdmin() ? "inline-block" : "none";
         dashboardButton.style.display = isAdmin() ? "inline-block" : "none";
-        const isVendorPortal = currentPortal === "vendor" && currentUser?.isVendor;
-        document.querySelectorAll(".nav-cart, .col-cart-top, .pdp-cart-top").forEach((element) => {
+        document.querySelectorAll(".nav-cart, .col-cart-top, .pdp-cart-top, .nav-wishlist, .nav-search").forEach((element) => {
           element.style.display = isVendorPortal ? "none" : "";
         });
         const productCartButton = document.getElementById("pdp-cart-btn");
@@ -3078,9 +3112,9 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           updateBodyScrollLock();
         }
         roleBadge.style.display = isAdmin() || isVendorPortal ? "inline-block" : "none";
-        vendorAccountLink.style.display = currentUser?.isVendor ? "block" : "none";
-        vendorProductsLink.style.display = isVendorPortal ? "block" : "none";
-        vendorOrdersLink.style.display = isVendorPortal ? "block" : "none";
+        vendorAccountLink.style.display = currentUser?.isVendor ? "none" : "block";
+        vendorProductsLink.style.display = "none";
+        vendorOrdersLink.style.display = "none";
         document.getElementById("customer-greeting").textContent =
           ["customer", "vendor"].includes(currentUserRole)
             ? isVendorPortal
@@ -3417,6 +3451,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         await loadProducts();
         renderBestSellers();
         await restoreCustomerOrAdminSession();
+        if (enforceVendorLanding()) return;
         if (window.location.hash === "#vendor-application" && currentUser) {
           openAccount(null, "vendor");
         }

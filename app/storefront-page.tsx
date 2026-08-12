@@ -48,8 +48,10 @@ const accountPageBody = createAccountPageBody(legacyStorefront.body);
 
 export function StorefrontPage({
   accountPage = false,
+  vendorPage = false,
 }: {
   accountPage?: boolean;
+  vendorPage?: boolean;
 }) {
   const { styles } = legacyStorefront;
   const body = accountPage ? accountPageBody : legacyStorefront.body;
@@ -60,8 +62,15 @@ export function StorefrontPage({
       {accountPage ? (
         <style>{`.account-route #account-view { min-height: calc(100vh - 160px); }`}</style>
       ) : null}
+      {vendorPage ? (
+        <style>{`.vendor-route .nav-search, .vendor-route .nav-wishlist, .vendor-route .nav-cart, .vendor-route #customer-menu, .vendor-route #login-nav-link { display: none !important; }`}</style>
+      ) : null}
       <div
-        className={accountPage ? "account-route" : undefined}
+        className={
+          accountPage
+            ? `account-route${vendorPage ? " vendor-route" : ""}`
+            : undefined
+        }
         style={{ display: "contents" }}
         suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: body }}
