@@ -1,4 +1,6 @@
 node_modules/
+.next/
+*.tsbuildinfo
 server/.env
 server/data.db
 server/data.db-*

@@ -1,5 +1,5 @@
-const seedProducts = require("../server/seed-products.json");
-const { json, supabaseRest } = require("../lib/supabase-server");
+const seedProducts = require("../../server/seed-products.json");
+const { json, supabaseRest } = require("../../lib/supabase-server");
 
 const money = (value) => `R${Number(value).toLocaleString("en-ZA", {
   minimumFractionDigits: Number(value) % 1 ? 2 : 0,

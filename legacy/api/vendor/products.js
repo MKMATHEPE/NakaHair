@@ -4,7 +4,7 @@ const {
   json,
   serviceHeaders,
   supabaseRest,
-} = require("../../lib/supabase-server");
+} = require("../../../lib/supabase-server");
 
 const allowedCollections = ["everyday", "signature", "luxe"];
 

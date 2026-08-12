@@ -1,0 +1,31 @@
+{
+  "name": "naka-hair",
+  "version": "2.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "extract:legacy": "node scripts/extract-legacy-storefront.mjs",
+    "predev": "npm run extract:legacy",
+    "dev": "next dev",
+    "prebuild": "npm run extract:legacy",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.112.3",
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,10 +1,10 @@
-const seedProducts = require("../server/seed-products.json");
+const seedProducts = require("../../server/seed-products.json");
 const {
   getAccessToken,
   getAuthenticatedUser,
   json,
   supabaseRest,
-} = require("../lib/supabase-server");
+} = require("../../lib/supabase-server");
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

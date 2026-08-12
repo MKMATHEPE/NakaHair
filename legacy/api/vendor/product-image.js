@@ -4,7 +4,7 @@ const {
   json,
   serviceHeaders,
   supabaseRest,
-} = require("../../lib/supabase-server");
+} = require("../../../lib/supabase-server");
 
 const allowedTypes = {
   "image/jpeg": "jpg",

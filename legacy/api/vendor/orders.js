@@ -1,4 +1,4 @@
-const { getApprovedVendor, json, supabaseRest } = require("../../lib/supabase-server");
+const { getApprovedVendor, json, supabaseRest } = require("../../../lib/supabase-server");
 
 const statuses = [
   "Order received",
