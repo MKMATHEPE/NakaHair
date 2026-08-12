@@ -2513,8 +2513,12 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
 
       function renderVendorProducts(panel) {
         const rows = vendorProductsCache.length
-          ? '<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead><tbody>' +
-            vendorProductsCache.map((product) => '<tr><td><strong>' + escapeHtml(product.name) + '</strong><br><small>' + escapeHtml(product.product_type) + '</small></td><td>' + formatCurrency(Number(product.price)) + '</td><td>' + Number(product.stock_quantity) + '</td><td>' + escapeHtml(product.status) + '</td><td><button class="admin-table-action" onclick="editVendorProduct(' + Number(product.id) + ')">Edit</button> <button class="admin-table-action" onclick="deleteVendorProduct(' + Number(product.id) + ')">Delete</button></td></tr>').join('') +
+          ? '<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th>Preview</th><th></th></tr></thead><tbody>' +
+            vendorProductsCache.map((product) => {
+              const primaryImage = Array.isArray(product.image_urls) && product.image_urls.length ? product.image_urls[0] : product.image_url || "";
+              const thumbnail = '<div class="vendor-product-table-thumb"><span>No image</span>' + productImgHTML(primaryImage, product.name) + '</div>';
+              return '<tr><td><strong>' + escapeHtml(product.name) + '</strong><br><small>' + escapeHtml(product.product_type) + '</small></td><td>' + formatCurrency(Number(product.price)) + '</td><td>' + Number(product.stock_quantity) + '</td><td>' + escapeHtml(product.status) + '</td><td>' + thumbnail + '</td><td><button class="admin-table-action" onclick="editVendorProduct(' + Number(product.id) + ')">Edit</button> <button class="admin-table-action" onclick="deleteVendorProduct(' + Number(product.id) + ')">Delete</button></td></tr>';
+            }).join('') +
             '</tbody></table></div>'
           : '<p class="account-empty">You have not created any products yet.</p>';
         panel.innerHTML = '<h3>My Products</h3><p class="checkout-copy">Create and manage only the products owned by your vendor profile. Active products with stock appear in the store.</p>' + rows + '<h3 style="margin-top:32px">Product Editor</h3>' + vendorProductFormMarkup();
