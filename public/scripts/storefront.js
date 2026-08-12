@@ -1408,6 +1408,7 @@
         "/vendor/products": { tab: "vendor-products", portal: "vendor" },
         "/vendor/orders": { tab: "vendor-orders", portal: "vendor" },
         "/vendor/analytics": { tab: "vendor-analytics", portal: "vendor" },
+        "/vendor/preview": { tab: "vendor-preview", portal: "vendor" },
       };
 
       const accountTabRoutes = Object.fromEntries(
@@ -2520,6 +2521,82 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         resetVendorProductForm();
       }
 
+      function vendorProductToStoreProduct(product) {
+        const images = Array.isArray(product.image_urls) && product.image_urls.length
+          ? product.image_urls
+          : product.image_url ? [product.image_url] : [];
+        return {
+          id: "vendor-preview-" + product.id,
+          vendorProductId: product.id,
+          source: "vendor",
+          storePreview: true,
+          collection: product.collection || "everyday",
+          hairType: product.hair_type || "",
+          name: product.name || "Untitled product",
+          type: product.product_type || "Hair product",
+          price: formatCurrency(Number(product.price || 0)),
+          oldPrice: product.old_price == null ? null : formatCurrency(Number(product.old_price)),
+          tag: product.tag || "Vendor",
+          rating: Number(product.rating || 0),
+          reviewCount: Number(product.review_count || 0),
+          shortDesc: product.short_description || "",
+          desc: product.description || "",
+          image: images[0] || "",
+          images,
+          sizes: Array.isArray(product.sizes) ? product.sizes : [],
+          hairOrigins: Array.isArray(product.hair_origins) ? product.hair_origins : [],
+          details: product.details && typeof product.details === "object" ? product.details : {},
+          stockQuantity: Number(product.stock_quantity || 0),
+        };
+      }
+
+      async function loadVendorStorePreview(panel) {
+        panel.innerHTML = '<h3>Store Preview</h3><p class="account-empty">Loading your products…</p>';
+        try {
+          const token = await getSupabaseAccessToken();
+          if (!token) throw new Error("Please sign in again.");
+          const res = await fetch("/api/vendor/products", {
+            headers: { Authorization: "Bearer " + token },
+          });
+          const data = await res.json().catch(() => []);
+          if (!res.ok) throw new Error(data.error || "Unable to load your product preview.");
+          vendorProductsCache = data;
+          panel.innerHTML = '<h3>Store Preview</h3><p class="checkout-copy">See how your uploaded products appear to customers.</p><div class="vendor-preview-note">Preview mode only — shopping controls remain disabled. Draft and out-of-stock products are labelled and are not visible in the live customer catalogue.</div><div class="vendor-preview-grid" id="vendor-preview-grid"></div>';
+          const grid = document.getElementById("vendor-preview-grid");
+          if (!data.length) {
+            grid.innerHTML = '<p class="account-empty">Upload a product to see its customer-facing preview here.</p>';
+            return;
+          }
+          data.forEach((product) => {
+            const preview = vendorProductToStoreProduct(product);
+            const wrapper = document.createElement("div");
+            wrapper.className = "vendor-preview-card";
+            const card = document.createElement("div");
+            card.className = "product-card";
+            card.tabIndex = 0;
+            card.setAttribute("role", "button");
+            card.setAttribute("aria-label", "Preview " + preview.name);
+            const openPreview = () => openPDP(preview);
+            card.addEventListener("click", openPreview);
+            card.addEventListener("keydown", (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openPreview();
+              }
+            });
+            card.innerHTML = '<div class="product-img"><div class="product-img-inner"><span>PRODUCT IMAGE</span>' + productImgHTML(preview.image, preview.name) + '</div>' + (preview.tag ? '<div class="product-tag">' + escapeHtml(preview.tag) + '</div>' : '') + '</div><div class="product-sub">' + escapeHtml(preview.type) + '</div><div class="product-name">' + escapeHtml(preview.name) + '</div><div class="product-price">' + (preview.oldPrice ? '<del>' + escapeHtml(preview.oldPrice) + '</del> ' : '') + escapeHtml(preview.price) + '</div>';
+            const status = document.createElement("span");
+            const isLive = product.status === "active" && Number(product.stock_quantity) > 0;
+            status.className = "vendor-preview-status" + (isLive ? " active" : "");
+            status.textContent = isLive ? "Live in store" : product.status === "draft" ? "Draft · Preview only" : "Out of stock · Hidden";
+            wrapper.append(card, status);
+            grid.appendChild(wrapper);
+          });
+        } catch (error) {
+          panel.innerHTML = '<h3>Store Preview</h3><p class="account-empty">' + escapeHtml(error.message) + '</p>';
+        }
+      }
+
       function resetVendorProductForm() {
         const form = document.getElementById("vendor-product-form");
         if (!form) return;
@@ -2801,7 +2878,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         view.scrollIntoView({ behavior: "smooth", block: "start" });
         const isVendorPortal = currentPortal === "vendor" && currentUser?.isVendor;
         const tabs = isVendorPortal
-          ? ["vendor-products", "vendor-orders", "vendor-analytics", "vendor"]
+          ? ["vendor-products", "vendor-orders", "vendor-analytics", "vendor-preview", "vendor"]
           : [
               "profile",
               "orders",
@@ -2836,6 +2913,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
                   "vendor-products": "My Products",
                   "vendor-orders": "My Orders",
                   "vendor-analytics": "Analytics",
+                  "vendor-preview": "Store Preview",
                 }[name] +
                 "</a>",
             )
@@ -2848,6 +2926,8 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           await loadVendorOrders(panel);
         } else if (tab === "vendor-analytics" && isVendorPortal) {
           await loadVendorAnalytics(panel);
+        } else if (tab === "vendor-preview" && isVendorPortal) {
+          await loadVendorStorePreview(panel);
         } else if (tab === "profile") {
           panel.innerHTML =
             '<h3>My Profile</h3><div class="form-grid"><div class="form-field"><label class="field-label">First Name</label><input class="field-input" id="account-first" value="' +
@@ -3216,7 +3296,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         vendorManagementNav.style.display = isVendorPortal ? "inline-flex" : "none";
         adminLogout.style.display = isAdmin() ? "inline-block" : "none";
         dashboardButton.style.display = isAdmin() ? "inline-block" : "none";
-        document.querySelectorAll(".nav-cart, .col-cart-top, .pdp-cart-top, .nav-wishlist, .nav-search").forEach((element) => {
+        document.querySelectorAll(".nav-cart, .col-cart-top, .pdp-cart-top, .pdp-wishlist-top, #pdp-wish-btn, .nav-wishlist, .nav-search").forEach((element) => {
           element.style.display = isVendorPortal ? "none" : "";
         });
         const productCartButton = document.getElementById("pdp-cart-btn");
@@ -3239,7 +3319,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         roleBadge.textContent = isAdmin() ? "Admin" : isVendorPortal ? "Vendor" : "";
 
         const editTrigger = document.getElementById("admin-edit-trigger");
-        const ownedVendorProduct = currentUser?.isVendor && currentPdpProduct?.source === "vendor" && vendorProductsCache.some((product) => Number(product.id) === Number(currentPdpProduct.vendorProductId));
+        const ownedVendorProduct = currentUser?.isVendor && currentPdpProduct?.source === "vendor" && !currentPdpProduct?.storePreview && vendorProductsCache.some((product) => Number(product.id) === Number(currentPdpProduct.vendorProductId));
         editTrigger.style.display =
           currentPdpProduct && (isAdmin() || ownedVendorProduct) ? "inline-block" : "none";
         editTrigger.textContent = isAdmin() ? "Edit product" : "Edit my product";
