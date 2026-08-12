@@ -16,13 +16,52 @@ function readLegacyStorefront() {
 
 const legacyStorefront = readLegacyStorefront();
 
-export function StorefrontPage() {
-  const { styles, body } = legacyStorefront;
+function createAccountPageBody(body: string) {
+  const accountView = body.match(
+    /<main class="account-view" id="account-view" style="display: none"><\/main>/,
+  )?.[0];
+  const footer = body.match(/<footer>[\s\S]*?<\/footer>/)?.[0];
+
+  if (!accountView || !footer) {
+    throw new Error("The preserved account page structure is incomplete.");
+  }
+
+  const bodyWithoutAccountView = body.replace(accountView, "");
+  const navigationEnd = bodyWithoutAccountView.indexOf("</nav>") + "</nav>".length;
+  const footerStart = bodyWithoutAccountView.indexOf(footer);
+
+  if (navigationEnd < "</nav>".length || footerStart < navigationEnd) {
+    throw new Error("The preserved storefront page order is incomplete.");
+  }
+
+  const navigation = bodyWithoutAccountView.slice(0, navigationEnd);
+  const homeContent = bodyWithoutAccountView.slice(navigationEnd, footerStart);
+  const footerAndOverlays = bodyWithoutAccountView.slice(footerStart);
+
+  return `${navigation}
+    <div hidden aria-hidden="true">${homeContent}</div>
+    ${accountView}
+    ${footerAndOverlays}`;
+}
+
+const accountPageBody = createAccountPageBody(legacyStorefront.body);
+
+export function StorefrontPage({
+  accountPage = false,
+}: {
+  accountPage?: boolean;
+}) {
+  const { styles } = legacyStorefront;
+  const body = accountPage ? accountPageBody : legacyStorefront.body;
 
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: styles }} />
+      {accountPage ? (
+        <style>{`.account-route #account-view { min-height: calc(100vh - 160px); }`}</style>
+      ) : null}
       <div
+        className={accountPage ? "account-route" : undefined}
         style={{ display: "contents" }}
         suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: body }}
