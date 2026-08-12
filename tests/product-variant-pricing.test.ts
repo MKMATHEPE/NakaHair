@@ -2,6 +2,23 @@ import { describe, expect, it } from "vitest";
 import pricing from "../lib/product-variant-pricing";
 
 describe("calculateVariantPrice", () => {
+  it("uses an exact hair-origin and size combination price", () => {
+    expect(pricing.calculateVariantPrice({
+      price: 1000,
+      variant_prices: [
+        { hairOrigin: "Brazilian", size: '18"', price: 1450 },
+        { hairOrigin: "Cambodian", size: '18"', price: 1725 },
+      ],
+    }, "Cambodian", '18"')).toBe(1725);
+  });
+
+  it("does not use a price belonging to a different combination", () => {
+    expect(pricing.calculateVariantPrice({
+      price: 1000,
+      variant_prices: [{ hairOrigin: "Brazilian", size: '18"', price: 1450 }],
+    }, "Cambodian", '18"')).toBe(1000);
+  });
+
   it("combines explicit size and hair-origin prices relative to the base price", () => {
     expect(pricing.calculateVariantPrice({
       price: 1000,

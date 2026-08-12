@@ -61,6 +61,54 @@ const normalizeOptionPrices = (value, options, label) => {
   return prices;
 };
 
+const variantKey = (hairOrigin, size) => JSON.stringify([
+  String(hairOrigin || ""),
+  String(size || ""),
+]);
+
+const expectedVariantOptions = (hairOrigins, sizes) => {
+  if (!hairOrigins.length && !sizes.length) return [];
+  const origins = hairOrigins.length ? hairOrigins : [""];
+  const sizeOptions = sizes.length ? sizes : [""];
+  return origins.flatMap((hairOrigin) =>
+    sizeOptions.map((size) => ({ hairOrigin, size })));
+};
+
+const normalizeVariantPrices = (value, hairOrigins, sizes) => {
+  if (!Array.isArray(value) || value.length > 400) {
+    throw new Error("Combination prices are invalid.");
+  }
+  const expected = expectedVariantOptions(hairOrigins, sizes);
+  if (value.length !== expected.length) {
+    throw new Error("Set a price for every selected hair origin and size combination.");
+  }
+  const received = new Map();
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new Error("Combination prices are invalid.");
+    }
+    const hairOrigin = String(entry.hairOrigin || "").trim();
+    const size = String(entry.size || "").trim();
+    const price = Number(entry.price);
+    const key = variantKey(hairOrigin, size);
+    if (received.has(key) || !Number.isFinite(price) || price < 0 || price > 9999999999.99) {
+      throw new Error("Combination prices are invalid.");
+    }
+    received.set(key, Math.round(price * 100) / 100);
+  }
+  return expected.map(({ hairOrigin, size }) => {
+    const key = variantKey(hairOrigin, size);
+    if (!received.has(key)) {
+      throw new Error("Set a price for every selected hair origin and size combination.");
+    }
+    return {
+      hairOrigin: hairOrigin || null,
+      size: size || null,
+      price: received.get(key),
+    };
+  });
+};
+
 const normalizeProduct = (body, partial = false) => {
   const source = body || {};
   const product = {};
@@ -136,6 +184,18 @@ const normalizeProduct = (body, partial = false) => {
     product.hairOriginPrices = normalizeOptionPrices(priceSource, origins, "Hair origin");
   }
 
+  if (!partial || source.variantPrices !== undefined || source.sizes !== undefined || source.hairOrigins !== undefined) {
+    const sizes = product.sizes || normalizeStringArray(source.sizes || [], "Sizes");
+    const origins = product.hairOrigins || normalizeStringArray(source.hairOrigins || [], "Hair origins");
+    const fallbackPrice = product.price ?? Number(source.price);
+    const fallbackVariants = expectedVariantOptions(origins, sizes).map(({ hairOrigin, size }) => ({
+      hairOrigin: hairOrigin || null,
+      size: size || null,
+      price: fallbackPrice,
+    }));
+    product.variantPrices = normalizeVariantPrices(source.variantPrices ?? fallbackVariants, origins, sizes);
+  }
+
   if (!partial || source.details !== undefined) {
     product.details = normalizeDetails(source.details || {});
   }
@@ -166,6 +226,7 @@ const toRow = (product) => {
     hairOrigins: "hair_origins",
     sizePrices: "size_prices",
     hairOriginPrices: "hair_origin_prices",
+    variantPrices: "variant_prices",
     details: "details",
   };
   for (const [source, target] of Object.entries(mappings)) {

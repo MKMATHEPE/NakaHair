@@ -1259,6 +1259,20 @@
         font-size: 10px;
         line-height: 1.5;
       }
+      .vendor-combination-prices {
+        border-top: 1px solid var(--border);
+        margin-top: 18px;
+        padding-top: 18px;
+      }
+      .vendor-combination-prices > label {
+        color: var(--black);
+      }
+      .vendor-combination-empty {
+        color: var(--gray);
+        font-size: 11px;
+        line-height: 1.6;
+        padding: 10px 0 2px;
+      }
       .admin-field-row {
         display: flex;
         gap: 10px;
@@ -4228,6 +4242,13 @@
 
       function getVariantPrice(product, origin, size) {
         const basePrice = parsePriceValue(product.price);
+        const exactVariant = Array.isArray(product.variantPrices)
+          ? product.variantPrices.find((variant) =>
+              String(variant?.hairOrigin || "") === String(origin || "")
+              && String(variant?.size || "") === String(size || ""))
+          : null;
+        if (exactVariant) return Math.max(0, parsePriceValue(exactVariant.price));
+        if (Array.isArray(product.variantPrices) && product.variantPrices.length) return basePrice;
         const hasSizePrice = size && product.sizePrices && Object.prototype.hasOwnProperty.call(product.sizePrices, size);
         const hasOriginPrice = origin && product.hairOriginPrices && Object.prototype.hasOwnProperty.call(product.hairOriginPrices, origin);
         const sizePrice = hasSizePrice
@@ -5374,8 +5395,7 @@
       let vendorProductsCache = [];
       let vendorSelectedHairOrigins = [];
       let vendorSelectedSizes = [];
-      let vendorHairOriginPrices = {};
-      let vendorSizePrices = {};
+      let vendorVariantPrices = {};
       let vendorSelectedDetails = {};
       let pendingVendorImageFiles = [];
       let vendorProductImages = [];
@@ -6312,10 +6332,11 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           <div class="admin-field"><label>Name *</label><input type="text" id="vendor-product-name" maxlength="160" required></div>
           <div class="admin-field-row"><div class="admin-field"><label>Product Type *</label><input type="text" id="vendor-product-type" maxlength="100" placeholder="Wig, bundle, closure…" required></div><div class="admin-field"><label>Hair Type *</label><input type="text" id="vendor-product-hair-type" maxlength="100" placeholder="Straight, curly, body wave…" required></div></div>
           <div class="admin-field-row"><div class="admin-field"><label>Collection *</label><select class="field-input" id="vendor-product-collection" required><option value="everyday">Glam On A Budget</option><option value="signature">Signature Collection</option><option value="luxe">Luxe Collection</option></select></div><div class="admin-field"><label>Visibility *</label><select class="field-input" id="vendor-product-status" required><option value="draft">Draft</option><option value="active">Active in Store</option></select></div></div>
-          <div class="admin-field-row"><div class="admin-field"><label>Base Price (R) *</label><input type="number" id="vendor-product-price" min="0" step="0.01" required></div><div class="admin-field"><label>Old Price (optional)</label><input type="number" id="vendor-product-old-price" min="0" step="0.01"></div><div class="admin-field"><label>Stock *</label><input type="number" id="vendor-product-stock" min="0" step="1" value="0" required></div></div>
+          <div class="admin-field-row"><div class="admin-field"><label>Base Price (R) *</label><input type="number" id="vendor-product-price" min="0" step="0.01" required oninput="renderVendorVariantPrices()"></div><div class="admin-field"><label>Old Price (optional)</label><input type="number" id="vendor-product-old-price" min="0" step="0.01"></div><div class="admin-field"><label>Stock *</label><input type="number" id="vendor-product-stock" min="0" step="1" value="0" required></div></div>
           <div class="admin-field"><label>Tag (optional, e.g. New / Best Seller)</label><input type="text" id="vendor-product-tag" maxlength="50"></div>
-          <div class="admin-field"><label>Hair Origins (select all that apply)</label><div class="admin-quick-chips" id="vendor-hair-origin-options"><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Vietnamese Virgin" onclick="toggleVendorHairOrigin('Vietnamese Virgin')">Vietnamese Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Brazilian Virgin" onclick="toggleVendorHairOrigin('Brazilian Virgin')">Brazilian Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Cambodian Virgin" onclick="toggleVendorHairOrigin('Cambodian Virgin')">Cambodian Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Indian Virgin" onclick="toggleVendorHairOrigin('Indian Virgin')">Indian Virgin</button><button type="button" class="admin-quick-chip" onclick="showVendorOriginForm()">+ Add origin</button></div><div class="admin-inline-add" id="vendor-add-origin-form" hidden><input type="text" id="vendor-new-origin" maxlength="80" placeholder="Enter hair origin"><button type="button" class="admin-quick-chip" onclick="submitVendorOrigin()">Add</button><button type="button" class="admin-quick-chip" onclick="closeVendorOriginForm()">Cancel</button></div><div class="vendor-option-prices" id="vendor-hair-origin-prices"></div><small class="vendor-option-price-help">Set the full selling price for each origin. When a customer selects both an origin and a size, their differences from the base price are combined.</small></div>
-          <div class="admin-field"><label>Sizes (select all that apply)</label><div class="admin-quick-chips" id="vendor-size-options"><button type="button" class="admin-quick-chip" data-vendor-size='10"' onclick="toggleVendorSizeInches(10)">10&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='12"' onclick="toggleVendorSizeInches(12)">12&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='14"' onclick="toggleVendorSizeInches(14)">14&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='16"' onclick="toggleVendorSizeInches(16)">16&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='18"' onclick="toggleVendorSizeInches(18)">18&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='20"' onclick="toggleVendorSizeInches(20)">20&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='22"' onclick="toggleVendorSizeInches(22)">22&quot;</button><button type="button" class="admin-quick-chip" onclick="showVendorSizeForm()">+ Add size</button></div><div class="admin-inline-add" id="vendor-add-size-form" hidden><input type="text" id="vendor-new-size" maxlength="80" placeholder='e.g. 24"'><button type="button" class="admin-quick-chip" onclick="submitVendorSize()">Add</button><button type="button" class="admin-quick-chip" onclick="closeVendorSizeForm()">Cancel</button></div><div class="vendor-option-prices" id="vendor-size-prices"></div><small class="vendor-option-price-help">Set the full selling price for every selected size.</small></div>
+          <div class="admin-field"><label>Hair Origins (select all that apply)</label><div class="admin-quick-chips" id="vendor-hair-origin-options"><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Vietnamese Virgin" onclick="toggleVendorHairOrigin('Vietnamese Virgin')">Vietnamese Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Brazilian Virgin" onclick="toggleVendorHairOrigin('Brazilian Virgin')">Brazilian Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Cambodian Virgin" onclick="toggleVendorHairOrigin('Cambodian Virgin')">Cambodian Virgin</button><button type="button" class="admin-quick-chip" data-vendor-hair-origin="Indian Virgin" onclick="toggleVendorHairOrigin('Indian Virgin')">Indian Virgin</button><button type="button" class="admin-quick-chip" onclick="showVendorOriginForm()">+ Add origin</button></div><div class="admin-inline-add" id="vendor-add-origin-form" hidden><input type="text" id="vendor-new-origin" maxlength="80" placeholder="Enter hair origin"><button type="button" class="admin-quick-chip" onclick="submitVendorOrigin()">Add</button><button type="button" class="admin-quick-chip" onclick="closeVendorOriginForm()">Cancel</button></div></div>
+          <div class="admin-field"><label>Sizes (select all that apply)</label><div class="admin-quick-chips" id="vendor-size-options"><button type="button" class="admin-quick-chip" data-vendor-size='10"' onclick="toggleVendorSizeInches(10)">10&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='12"' onclick="toggleVendorSizeInches(12)">12&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='14"' onclick="toggleVendorSizeInches(14)">14&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='16"' onclick="toggleVendorSizeInches(16)">16&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='18"' onclick="toggleVendorSizeInches(18)">18&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='20"' onclick="toggleVendorSizeInches(20)">20&quot;</button><button type="button" class="admin-quick-chip" data-vendor-size='22"' onclick="toggleVendorSizeInches(22)">22&quot;</button><button type="button" class="admin-quick-chip" onclick="showVendorSizeForm()">+ Add size</button></div><div class="admin-inline-add" id="vendor-add-size-form" hidden><input type="text" id="vendor-new-size" maxlength="80" placeholder='e.g. 24"'><button type="button" class="admin-quick-chip" onclick="submitVendorSize()">Add</button><button type="button" class="admin-quick-chip" onclick="closeVendorSizeForm()">Cancel</button></div></div>
+          <div class="admin-field vendor-combination-prices"><label>Prices by Hair Origin &amp; Size *</label><div class="vendor-option-prices" id="vendor-variant-prices"></div><small class="vendor-option-price-help">Set the exact selling price for every available combination. The customer price changes when both options are selected.</small></div>
           <div class="admin-field"><label>Product Details (select to add or remove)</label><div class="admin-quick-chips" id="vendor-detail-options"><button type="button" class="admin-quick-chip" data-vendor-detail-key="Texture" data-vendor-detail-value="Silky Straight" onclick="toggleVendorDetail('Texture','Silky Straight')">Texture: Silky Straight</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Type" data-vendor-detail-value="100% Virgin Hair" onclick="toggleVendorDetail('Type','100% Virgin Hair')">Type: 100% Virgin Hair</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Weight" data-vendor-detail-value="130g" onclick="toggleVendorDetail('Weight','130g')">Weight: 130g</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Colour" data-vendor-detail-value="Natural Black (1B)" onclick="toggleVendorDetail('Colour','Natural Black (1B)')">Colour: Natural Black (1B)</button><button type="button" class="admin-quick-chip" data-vendor-detail-key="Cuticle" data-vendor-detail-value="Fully Aligned" onclick="toggleVendorDetail('Cuticle','Fully Aligned')">Cuticle: Fully Aligned</button><button type="button" class="admin-quick-chip" onclick="showVendorDetailForm()">+ Add detail</button></div><div class="admin-inline-add" id="vendor-add-detail-form" hidden><input type="text" id="vendor-new-detail" maxlength="251" placeholder="Name: Value"><button type="button" class="admin-quick-chip" onclick="submitVendorDetail()">Add</button><button type="button" class="admin-quick-chip" onclick="closeVendorDetailForm()">Cancel</button></div></div>
           <div class="admin-field"><label>Short Description</label><textarea id="vendor-product-short-description" maxlength="300"></textarea></div><div class="admin-field"><label>Full Description *</label><textarea id="vendor-product-description" maxlength="3000" required></textarea></div>
           <div class="admin-save-row"><button class="btn" id="vendor-product-save" type="submit">Create Product</button><button class="btn-secondary" type="button" onclick="resetVendorProductForm()">Clear</button><span class="admin-status" id="vendor-product-message" role="status"></span></div>
@@ -6419,23 +6440,46 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         return Number.isFinite(basePrice) && basePrice >= 0 ? basePrice : 0;
       }
 
-      function setVendorOptionPrice(type, option, value) {
-        const price = value === "" ? "" : Number(value);
-        if (type === "size") vendorSizePrices[option] = price;
-        else vendorHairOriginPrices[option] = price;
+      function vendorVariantPriceKey(hairOrigin, size) {
+        return JSON.stringify([String(hairOrigin || ""), String(size || "")]);
       }
 
-      function renderVendorOptionPrices() {
-        const originPrices = document.getElementById("vendor-hair-origin-prices");
-        const sizePrices = document.getElementById("vendor-size-prices");
-        if (!originPrices || !sizePrices) return;
-        const renderInputs = (options, prices, type) => options.map((option) => {
-          const value = prices[option] ?? vendorDefaultOptionPrice();
-          const inputId = "vendor-" + type + "-price-" + options.indexOf(option);
-          return '<div class="vendor-option-price"><span>' + escapeHtml(option) + '</span><label for="' + inputId + '">R</label><input id="' + inputId + '" type="number" min="0" max="9999999999.99" step="0.01" value="' + escapeHtml(value) + '" required aria-label="Price for ' + escapeHtml(option) + '" oninput="setVendorOptionPrice(\'' + type + '\', decodeURIComponent(\'' + encodeURIComponent(option) + '\'), this.value)"></div>';
+      function setVendorVariantPrice(hairOrigin, size, value) {
+        vendorVariantPrices[vendorVariantPriceKey(hairOrigin, size)] = value === "" ? "" : Number(value);
+      }
+
+      function setVendorVariantPriceByIndex(index, value) {
+        const combination = getVendorVariantOptions()[Number(index)];
+        if (!combination) return;
+        setVendorVariantPrice(combination.hairOrigin, combination.size, value);
+      }
+
+      function getVendorVariantOptions() {
+        if (!vendorSelectedHairOrigins.length && !vendorSelectedSizes.length) return [];
+        const origins = vendorSelectedHairOrigins.length ? vendorSelectedHairOrigins : [""];
+        const sizes = vendorSelectedSizes.length ? vendorSelectedSizes : [""];
+        return origins.flatMap((hairOrigin) => sizes.map((size) => ({ hairOrigin, size })));
+      }
+
+      function renderVendorVariantPrices() {
+        const container = document.getElementById("vendor-variant-prices");
+        if (!container) return;
+        const combinations = getVendorVariantOptions();
+        const validKeys = new Set(combinations.map(({ hairOrigin, size }) => vendorVariantPriceKey(hairOrigin, size)));
+        Object.keys(vendorVariantPrices).forEach((key) => {
+          if (!validKeys.has(key)) delete vendorVariantPrices[key];
+        });
+        if (!combinations.length) {
+          container.innerHTML = '<p class="vendor-combination-empty">Select at least one hair origin or size to set option pricing. The base price will be used until then.</p>';
+          return;
+        }
+        container.innerHTML = combinations.map(({ hairOrigin, size }, index) => {
+          const key = vendorVariantPriceKey(hairOrigin, size);
+          const value = vendorVariantPrices[key] ?? vendorDefaultOptionPrice();
+          const label = [hairOrigin, size].filter(Boolean).join(" · ");
+          const inputId = "vendor-variant-price-" + index;
+          return '<div class="vendor-option-price"><span>' + escapeHtml(label) + '</span><label for="' + inputId + '">R</label><input id="' + inputId + '" type="number" min="0" max="9999999999.99" step="0.01" value="' + escapeHtml(value) + '" required aria-label="Price for ' + escapeHtml(label) + '" oninput="setVendorVariantPriceByIndex(' + index + ', this.value)"></div>';
         }).join("");
-        originPrices.innerHTML = renderInputs(vendorSelectedHairOrigins, vendorHairOriginPrices, "origin");
-        sizePrices.innerHTML = renderInputs(vendorSelectedSizes, vendorSizePrices, "size");
       }
 
       function renderVendorCustomSelections() {
@@ -6457,26 +6501,22 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           if (!preset) addVendorSelectionButton(detailOptions, key + ": " + value, { vendorDetailKey: key, vendorDetailValue: value }, () => toggleVendorDetail(key, value));
         });
         updateVendorSelectionButtons();
-        renderVendorOptionPrices();
+        renderVendorVariantPrices();
       }
 
       function toggleVendorHairOrigin(value) {
         if (vendorSelectedHairOrigins.includes(value)) {
           vendorSelectedHairOrigins = vendorSelectedHairOrigins.filter((item) => item !== value);
-          delete vendorHairOriginPrices[value];
         } else {
           vendorSelectedHairOrigins = [...vendorSelectedHairOrigins, value];
-          vendorHairOriginPrices[value] = vendorDefaultOptionPrice();
         }
         renderVendorCustomSelections();
       }
       function toggleVendorSize(value) {
         if (vendorSelectedSizes.includes(value)) {
           vendorSelectedSizes = vendorSelectedSizes.filter((item) => item !== value);
-          delete vendorSizePrices[value];
         } else {
           vendorSelectedSizes = [...vendorSelectedSizes, value];
-          vendorSizePrices[value] = vendorDefaultOptionPrice();
         }
         renderVendorCustomSelections();
       }
@@ -6588,6 +6628,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           hairOrigins: Array.isArray(product.hair_origins) ? product.hair_origins : [],
           sizePrices: product.size_prices || {},
           hairOriginPrices: product.hair_origin_prices || {},
+          variantPrices: product.variant_prices || [],
           details: product.details && typeof product.details === "object" ? product.details : {},
           stockQuantity: Number(product.stock_quantity || 0),
         };
@@ -6633,8 +6674,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         message.className = "admin-status";
         vendorSelectedHairOrigins = [];
         vendorSelectedSizes = [];
-        vendorHairOriginPrices = {};
-        vendorSizePrices = {};
+        vendorVariantPrices = {};
         vendorSelectedDetails = {};
         pendingVendorImageFiles = [];
         vendorProductImages = [];
@@ -6666,8 +6706,14 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         document.getElementById("vendor-product-description").value = product.description || "";
         vendorSelectedHairOrigins = [...(product.hair_origins || [])];
         vendorSelectedSizes = [...(product.sizes || [])];
-        vendorHairOriginPrices = Object.fromEntries(vendorSelectedHairOrigins.map((origin) => [origin, Number(product.hair_origin_prices?.[origin] ?? product.price ?? 0)]));
-        vendorSizePrices = Object.fromEntries(vendorSelectedSizes.map((size) => [size, Number(product.size_prices?.[size] ?? product.price ?? 0)]));
+        vendorVariantPrices = {};
+        const savedVariants = Array.isArray(product.variant_prices) ? product.variant_prices : [];
+        getVendorVariantOptions().forEach(({ hairOrigin, size }) => {
+          const exact = savedVariants.find((variant) => String(variant?.hairOrigin || "") === hairOrigin && String(variant?.size || "") === size);
+          vendorVariantPrices[vendorVariantPriceKey(hairOrigin, size)] = exact
+            ? Number(exact.price)
+            : getVariantPrice({ price: product.price, sizePrices: product.size_prices || {}, hairOriginPrices: product.hair_origin_prices || {} }, hairOrigin, size);
+        });
         vendorSelectedDetails = { ...(product.details || {}) };
         pendingVendorImageFiles = [];
         vendorProductImages = Array.isArray(product.image_urls) && product.image_urls.length
@@ -6704,8 +6750,11 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           description: document.getElementById("vendor-product-description").value.trim(),
           hairOrigins: vendorSelectedHairOrigins,
           sizes: vendorSelectedSizes,
-          hairOriginPrices: Object.fromEntries(vendorSelectedHairOrigins.map((origin) => [origin, vendorHairOriginPrices[origin]])),
-          sizePrices: Object.fromEntries(vendorSelectedSizes.map((size) => [size, vendorSizePrices[size]])),
+          variantPrices: getVendorVariantOptions().map(({ hairOrigin, size }) => ({
+            hairOrigin: hairOrigin || null,
+            size: size || null,
+            price: vendorVariantPrices[vendorVariantPriceKey(hairOrigin, size)] ?? vendorDefaultOptionPrice(),
+          })),
           details: vendorSelectedDetails,
         };
         try {

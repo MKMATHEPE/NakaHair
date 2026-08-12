@@ -81,7 +81,7 @@ module.exports = async function handler(request, response) {
     let vendorProducts = [];
     if (vendorIds.length) {
       const result = await supabaseRest(
-        `vendor_products?select=id,vendor_user_id,name,price,stock_quantity,status,sizes,hair_origins,size_prices,hair_origin_prices&status=eq.active&id=in.(${vendorIds.join(",")})`,
+        `vendor_products?select=id,vendor_user_id,name,price,stock_quantity,status,sizes,hair_origins,size_prices,hair_origin_prices,variant_prices&status=eq.active&id=in.(${vendorIds.join(",")})`,
       );
       if (!result.ok) return json(response, 502, { error: "Unable to verify vendor products." });
       vendorProducts = await result.json();
