@@ -95,6 +95,31 @@
 
       // ── Render best seller cards (top 4 by rating) — callable again after
       // an admin edit so the grid reflects the change immediately.
+      function createCustomerProductCard(product) {
+        const card = document.createElement("div");
+        card.className = "product-card";
+        card.dataset.collection = product.collection;
+        card.addEventListener("click", () => openPDP(product));
+        card.innerHTML =
+          '<div class="product-img">' +
+          '<div class="product-img-inner"><span>PRODUCT IMAGE</span>' +
+          productImgHTML(product.image, product.name) +
+          "</div>" +
+          (product.tag ? '<div class="product-tag">' + escapeHtml(product.tag) + "</div>" : "") +
+          "</div>" +
+          '<div class="product-sub">' +
+          escapeHtml(product.type) +
+          "</div>" +
+          '<div class="product-name">' +
+          escapeHtml(product.name) +
+          "</div>" +
+          '<div class="product-price">' +
+          (product.oldPrice ? "<del>" + escapeHtml(product.oldPrice) + "</del> " : "") +
+          escapeHtml(product.price) +
+          "</div>";
+        return card;
+      }
+
       function renderBestSellers() {
         const grid = document.getElementById("product-grid");
         grid.innerHTML = "";
@@ -125,28 +150,7 @@
           return;
         }
         bestSellers.forEach((p) => {
-          const card = document.createElement("div");
-          card.className = "product-card";
-          card.dataset.collection = p.collection;
-          card.addEventListener("click", () => openPDP(p));
-          card.innerHTML =
-            '<div class="product-img">' +
-            '<div class="product-img-inner"><span>PRODUCT IMAGE</span>' +
-            productImgHTML(p.image, p.name) +
-            "</div>" +
-            (p.tag ? '<div class="product-tag">' + p.tag + "</div>" : "") +
-            "</div>" +
-            '<div class="product-sub">' +
-            p.type +
-            "</div>" +
-            '<div class="product-name">' +
-            p.name +
-            "</div>" +
-            '<div class="product-price">' +
-            (p.oldPrice ? "<del>" + p.oldPrice + "</del> " : "") +
-            p.price +
-            "</div>";
-          grid.appendChild(card);
+          grid.appendChild(createCustomerProductCard(p));
         });
       }
 
@@ -2581,36 +2585,16 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           const data = await res.json().catch(() => []);
           if (!res.ok) throw new Error(data.error || "Unable to load your product preview.");
           vendorProductsCache = data;
-          panel.innerHTML = '<h3>Store Preview</h3><p class="checkout-copy">See how your uploaded products appear to customers.</p><div class="vendor-preview-note">Preview mode only — shopping controls remain disabled. Draft and out-of-stock products are labelled and are not visible in the live customer catalogue.</div><div class="vendor-preview-grid" id="vendor-preview-grid"></div>';
+          const customerVisibleProducts = data.filter((product) => product.status === "active" && Number(product.stock_quantity) > 0);
+          panel.innerHTML = '<h3>Store Preview</h3><p class="checkout-copy">This is how your products appear in the customer store.</p><div class="vendor-preview-note">Customer view · Only active products with stock are shown. Shopping controls remain disabled while you are signed in as a vendor.</div><div class="products" id="vendor-preview-grid"></div>';
           const grid = document.getElementById("vendor-preview-grid");
-          if (!data.length) {
-            grid.innerHTML = '<p class="account-empty">Upload a product to see its customer-facing preview here.</p>';
+          if (!customerVisibleProducts.length) {
+            grid.innerHTML = '<p class="account-empty">Customers cannot see any of your products yet. Set a product to Active in Store and add stock to preview it here.</p>';
             return;
           }
-          data.forEach((product) => {
+          customerVisibleProducts.forEach((product) => {
             const preview = vendorProductToStoreProduct(product);
-            const wrapper = document.createElement("div");
-            wrapper.className = "vendor-preview-card";
-            const card = document.createElement("div");
-            card.className = "product-card";
-            card.tabIndex = 0;
-            card.setAttribute("role", "button");
-            card.setAttribute("aria-label", "Preview " + preview.name);
-            const openPreview = () => openPDP(preview);
-            card.addEventListener("click", openPreview);
-            card.addEventListener("keydown", (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                openPreview();
-              }
-            });
-            card.innerHTML = '<div class="product-img"><div class="product-img-inner"><span>PRODUCT IMAGE</span>' + productImgHTML(preview.image, preview.name) + '</div>' + (preview.tag ? '<div class="product-tag">' + escapeHtml(preview.tag) + '</div>' : '') + '</div><div class="product-sub">' + escapeHtml(preview.type) + '</div><div class="product-name">' + escapeHtml(preview.name) + '</div><div class="product-price">' + (preview.oldPrice ? '<del>' + escapeHtml(preview.oldPrice) + '</del> ' : '') + escapeHtml(preview.price) + '</div>';
-            const status = document.createElement("span");
-            const isLive = product.status === "active" && Number(product.stock_quantity) > 0;
-            status.className = "vendor-preview-status" + (isLive ? " active" : "");
-            status.textContent = isLive ? "Live in store" : product.status === "draft" ? "Draft · Preview only" : "Out of stock · Hidden";
-            wrapper.append(card, status);
-            grid.appendChild(wrapper);
+            grid.appendChild(createCustomerProductCard(preview));
           });
         } catch (error) {
           panel.innerHTML = '<h3>Store Preview</h3><p class="account-empty">' + escapeHtml(error.message) + '</p>';
