@@ -794,6 +794,53 @@
       .modal-close-x:hover {
         color: var(--black);
       }
+      .vendor-delete-modal .modal-box {
+        max-width: 440px;
+        padding: 36px;
+        border-top: 3px solid var(--gold);
+        box-shadow: 0 22px 60px rgba(17, 17, 17, 0.18);
+      }
+      .vendor-delete-eyebrow {
+        color: var(--gold);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+      }
+      .vendor-delete-modal .modal-box h2 {
+        font-size: 28px;
+        margin-bottom: 12px;
+      }
+      .vendor-delete-copy {
+        color: var(--gray);
+        font-size: 13px;
+        line-height: 1.7;
+      }
+      .vendor-delete-copy strong {
+        color: var(--black);
+        font-weight: 500;
+      }
+      .vendor-delete-error {
+        color: #c0392b;
+        font-size: 12px;
+        line-height: 1.5;
+        margin-top: 14px;
+      }
+      .vendor-delete-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 28px;
+      }
+      .vendor-delete-actions button {
+        min-width: 118px;
+      }
+      .vendor-delete-actions button:disabled,
+      .vendor-delete-modal .modal-close-x:disabled {
+        cursor: wait;
+        opacity: 0.55;
+      }
       .account-menu {
         position: relative;
         display: inline-flex;
@@ -2766,6 +2813,15 @@
           padding: 28px 22px;
           border-radius: 2px;
         }
+        .vendor-delete-modal .modal-box {
+          padding: 30px 22px 24px;
+        }
+        .vendor-delete-actions {
+          flex-direction: column-reverse;
+        }
+        .vendor-delete-actions button {
+          width: 100%;
+        }
         .admin-edit-panel {
           padding: 16px;
         }
@@ -3372,6 +3428,56 @@
         </button>
         <h2 id="info-modal-title"></h2>
         <div class="info-modal-copy" id="info-modal-content"></div>
+      </div>
+    </div>
+
+    <!-- ── VENDOR PRODUCT DELETE CONFIRMATION ── -->
+    <div
+      class="modal-overlay vendor-delete-modal"
+      id="vendor-delete-modal"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="vendor-delete-title"
+      aria-describedby="vendor-delete-copy"
+      onclick="handleVendorDeleteBackdrop(event)"
+      onkeydown="handleVendorDeleteKeydown(event)"
+    >
+      <div class="modal-box">
+        <button
+          class="modal-close-x"
+          id="vendor-delete-close"
+          type="button"
+          aria-label="Close delete confirmation"
+          onclick="closeVendorDeleteModal()"
+        >
+          &times;
+        </button>
+        <p class="vendor-delete-eyebrow">Vendor products</p>
+        <h2 id="vendor-delete-title">Delete product?</h2>
+        <p class="vendor-delete-copy" id="vendor-delete-copy">
+          <strong id="vendor-delete-product-name">This product</strong> will be
+          permanently removed from your product list and the customer store.
+          This action cannot be undone.
+        </p>
+        <p class="vendor-delete-error" id="vendor-delete-error" hidden></p>
+        <div class="vendor-delete-actions">
+          <button
+            class="btn-secondary"
+            id="vendor-delete-cancel"
+            type="button"
+            onclick="closeVendorDeleteModal()"
+          >
+            Cancel
+          </button>
+          <button
+            class="btn"
+            id="vendor-delete-confirm"
+            type="button"
+            onclick="confirmVendorProductDelete()"
+          >
+            Delete Product
+          </button>
+        </div>
       </div>
     </div>
     <main class="account-view" id="account-view" style="display: none"></main>
@@ -5000,8 +5106,11 @@
         const cartOpen = document
           .getElementById("cart-overlay")
           .classList.contains("open");
+        const vendorDeleteOpen = document
+          .getElementById("vendor-delete-modal")
+          .classList.contains("open");
         document.body.style.overflow =
-          pdpOpen || colOpen || cartOpen ? "hidden" : "";
+          pdpOpen || colOpen || cartOpen || vendorDeleteOpen ? "hidden" : "";
       }
 
       function closePDP() {
@@ -5262,6 +5371,9 @@
       let vendorSelectedDetails = {};
       let pendingVendorImageFiles = [];
       let vendorProductImages = [];
+      let pendingVendorDeleteId = null;
+      let vendorDeletePreviousFocus = null;
+      let vendorDeleteInProgress = false;
 
       const accountPageRoutes = {
         "/account/orders": { tab: "orders", portal: "customer" },
@@ -6596,19 +6708,99 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         }
       }
 
-      async function deleteVendorProduct(id) {
-        if (!window.confirm("Delete this product? This cannot be undone.")) return;
+      function deleteVendorProduct(id) {
+        const product = vendorProductsCache.find((item) => Number(item.id) === Number(id));
+        if (!product) return;
+        const modal = document.getElementById("vendor-delete-modal");
+        const error = document.getElementById("vendor-delete-error");
+        pendingVendorDeleteId = Number(id);
+        vendorDeletePreviousFocus = document.activeElement;
+        vendorDeleteInProgress = false;
+        document.getElementById("vendor-delete-product-name").textContent = product.name || "This product";
+        document.getElementById("vendor-delete-confirm").textContent = "Delete Product";
+        document.getElementById("vendor-delete-confirm").disabled = false;
+        document.getElementById("vendor-delete-cancel").disabled = false;
+        document.getElementById("vendor-delete-close").disabled = false;
+        error.hidden = true;
+        error.textContent = "";
+        modal.classList.add("open");
+        updateBodyScrollLock();
+        requestAnimationFrame(() => document.getElementById("vendor-delete-cancel").focus());
+      }
+
+      function closeVendorDeleteModal(forceClose = false, restoreFocus = true) {
+        if (vendorDeleteInProgress && !forceClose) return;
+        document.getElementById("vendor-delete-modal").classList.remove("open");
+        pendingVendorDeleteId = null;
+        vendorDeleteInProgress = false;
+        updateBodyScrollLock();
+        if (restoreFocus && vendorDeletePreviousFocus && document.contains(vendorDeletePreviousFocus)) {
+          vendorDeletePreviousFocus.focus();
+        }
+        vendorDeletePreviousFocus = null;
+      }
+
+      function handleVendorDeleteBackdrop(event) {
+        if (event.target === event.currentTarget) closeVendorDeleteModal();
+      }
+
+      function handleVendorDeleteKeydown(event) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeVendorDeleteModal();
+          return;
+        }
+        if (event.key !== "Tab") return;
+        const focusable = [
+          document.getElementById("vendor-delete-close"),
+          document.getElementById("vendor-delete-cancel"),
+          document.getElementById("vendor-delete-confirm"),
+        ].filter((element) => element && !element.disabled);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+
+      async function confirmVendorProductDelete() {
+        const id = pendingVendorDeleteId;
+        if (!id || vendorDeleteInProgress) return;
+        const confirmButton = document.getElementById("vendor-delete-confirm");
+        const cancelButton = document.getElementById("vendor-delete-cancel");
+        const closeButton = document.getElementById("vendor-delete-close");
+        const errorMessage = document.getElementById("vendor-delete-error");
+        vendorDeleteInProgress = true;
+        confirmButton.disabled = true;
+        cancelButton.disabled = true;
+        closeButton.disabled = true;
+        confirmButton.textContent = "Deleting…";
+        errorMessage.hidden = true;
         try {
           const token = await getSupabaseAccessToken();
+          if (!token) throw new Error("Please sign in again.");
           const res = await fetch("/api/vendor/products?id=" + encodeURIComponent(id), {
             method: "DELETE",
             headers: { Authorization: "Bearer " + token },
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || "Unable to delete product.");
+          closeVendorDeleteModal(true, false);
           openAccount(null, "vendor-products");
         } catch (error) {
-          window.alert(error.message);
+          vendorDeleteInProgress = false;
+          confirmButton.disabled = false;
+          cancelButton.disabled = false;
+          closeButton.disabled = false;
+          confirmButton.textContent = "Delete Product";
+          errorMessage.textContent = error.message || "Unable to delete product.";
+          errorMessage.hidden = false;
+          confirmButton.focus();
         }
       }
 
