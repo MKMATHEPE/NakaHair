@@ -1407,6 +1407,7 @@
         "/vendor/profile": { tab: "vendor", portal: "vendor" },
         "/vendor/products": { tab: "vendor-products", portal: "vendor" },
         "/vendor/orders": { tab: "vendor-orders", portal: "vendor" },
+        "/vendor/analytics": { tab: "vendor-analytics", portal: "vendor" },
       };
 
       const accountTabRoutes = Object.fromEntries(
@@ -2668,6 +2669,70 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         }
       }
 
+      async function loadVendorAnalytics(panel) {
+        panel.innerHTML = '<h3>Analytics</h3><p class="account-empty">Loading vendor analytics…</p>';
+        try {
+          const token = await getSupabaseAccessToken();
+          if (!token) throw new Error("Please sign in again.");
+          const headers = { Authorization: "Bearer " + token };
+          const [productsRes, ordersRes] = await Promise.all([
+            fetch("/api/vendor/products", { headers }),
+            fetch("/api/vendor/orders", { headers }),
+          ]);
+          const products = await productsRes.json().catch(() => []);
+          const orders = await ordersRes.json().catch(() => []);
+          if (!productsRes.ok) throw new Error(products.error || "Unable to load product analytics.");
+          if (!ordersRes.ok) throw new Error(orders.error || "Unable to load order analytics.");
+
+          const activeOrders = orders.filter((order) => order.status !== "Cancelled");
+          const salesValue = activeOrders.reduce((sum, order) => sum + Number(order.subtotal || 0), 0);
+          const inventoryUnits = products.reduce((sum, product) => sum + Number(product.stock_quantity || 0), 0);
+          const activeProducts = products.filter((product) => product.status === "active").length;
+          const completedOrders = orders.filter((order) => order.status === "Completed").length;
+          const statusCounts = orders.reduce((counts, order) => {
+            const status = String(order.status || "Unknown");
+            counts[status] = (counts[status] || 0) + 1;
+            return counts;
+          }, {});
+          const productSales = {};
+          activeOrders.forEach((order) => {
+            (order.items || []).forEach((item) => {
+              const name = String(item.name || "Product");
+              productSales[name] = (productSales[name] || 0) + Number(item.quantity || 0);
+            });
+          });
+          const topProducts = Object.entries(productSales)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+          panel.innerHTML =
+            '<h3>Analytics</h3><p class="checkout-copy">A summary of your products and vendor orders.</p>' +
+            '<div class="vendor-analytics-grid">' +
+              '<div class="vendor-analytics-card"><span>Sales value</span><strong>' + formatCurrency(salesValue) + '</strong></div>' +
+              '<div class="vendor-analytics-card"><span>Total orders</span><strong>' + orders.length + '</strong></div>' +
+              '<div class="vendor-analytics-card"><span>Active products</span><strong>' + activeProducts + '</strong></div>' +
+              '<div class="vendor-analytics-card"><span>Inventory units</span><strong>' + inventoryUnits + '</strong></div>' +
+            '</div>' +
+            '<div class="vendor-analytics-section"><h4>Order status</h4>' +
+              (orders.length
+                ? '<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Status</th><th>Orders</th></tr></thead><tbody>' +
+                  Object.entries(statusCounts).map(([status, count]) => '<tr><td>' + escapeHtml(status) + '</td><td>' + count + '</td></tr>').join('') +
+                  '</tbody></table></div>'
+                : '<p class="account-empty">No order activity yet.</p>') +
+            '</div>' +
+            '<div class="vendor-analytics-section"><h4>Top products</h4>' +
+              (topProducts.length
+                ? '<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Product</th><th>Units ordered</th></tr></thead><tbody>' +
+                  topProducts.map(([name, units]) => '<tr><td>' + escapeHtml(name) + '</td><td>' + units + '</td></tr>').join('') +
+                  '</tbody></table></div>'
+                : '<p class="account-empty">Product sales will appear here after your first order.</p>') +
+            '</div>' +
+            '<p class="checkout-copy" style="margin-top:20px">Completed orders: ' + completedOrders + ' · Draft products: ' + (products.length - activeProducts) + '</p>';
+        } catch (error) {
+          panel.innerHTML = '<h3>Analytics</h3><p class="account-empty">' + escapeHtml(error.message) + '</p>';
+        }
+      }
+
       async function updateVendorOrderStatus(id, status) {
         try {
           const token = await getSupabaseAccessToken();
@@ -2706,7 +2771,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         view.scrollIntoView({ behavior: "smooth", block: "start" });
         const isVendorPortal = currentPortal === "vendor" && currentUser?.isVendor;
         const tabs = isVendorPortal
-          ? ["vendor-products", "vendor-orders", "vendor"]
+          ? ["vendor-products", "vendor-orders", "vendor-analytics", "vendor"]
           : [
               "profile",
               "orders",
@@ -2740,6 +2805,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
                   vendor: isVendorPortal ? "Vendor Profile" : "Become a Vendor",
                   "vendor-products": "My Products",
                   "vendor-orders": "My Orders",
+                  "vendor-analytics": "Analytics",
                 }[name] +
                 "</a>",
             )
@@ -2750,6 +2816,8 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           await loadVendorProducts(panel);
         } else if (tab === "vendor-orders" && isVendorPortal) {
           await loadVendorOrders(panel);
+        } else if (tab === "vendor-analytics" && isVendorPortal) {
+          await loadVendorAnalytics(panel);
         } else if (tab === "profile") {
           panel.innerHTML =
             '<h3>My Profile</h3><div class="form-grid"><div class="form-field"><label class="field-label">First Name</label><input class="field-input" id="account-first" value="' +
