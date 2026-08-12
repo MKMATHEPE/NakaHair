@@ -5,6 +5,7 @@ const {
   json,
   supabaseRest,
 } = require("../../lib/supabase-server");
+const { calculateVariantPrice } = require("../../lib/product-variant-pricing");
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -80,7 +81,7 @@ module.exports = async function handler(request, response) {
     let vendorProducts = [];
     if (vendorIds.length) {
       const result = await supabaseRest(
-        `vendor_products?select=id,vendor_user_id,name,price,stock_quantity,status&status=eq.active&id=in.(${vendorIds.join(",")})`,
+        `vendor_products?select=id,vendor_user_id,name,price,stock_quantity,status,sizes,hair_origins,size_prices,hair_origin_prices&status=eq.active&id=in.(${vendorIds.join(",")})`,
       );
       if (!result.ok) return json(response, 502, { error: "Unable to verify vendor products." });
       vendorProducts = await result.json();
@@ -100,8 +101,19 @@ module.exports = async function handler(request, response) {
         if (!product || product.stock_quantity < quantity) {
           return json(response, 409, { error: `${product?.name || "A vendor product"} does not have enough stock.` });
         }
+        const selectedSize = String(item.selectedSize || "").trim();
+        const selectedOrigin = String(item.selectedOrigin || "").trim();
+        const sizes = Array.isArray(product.sizes) ? product.sizes : [];
+        const origins = Array.isArray(product.hair_origins) ? product.hair_origins : [];
+        if ((sizes.length && !sizes.includes(selectedSize)) || (!sizes.length && selectedSize)) {
+          return json(response, 409, { error: `Select a valid size for ${product.name}.` });
+        }
+        if ((origins.length && !origins.includes(selectedOrigin)) || (!origins.length && selectedOrigin)) {
+          return json(response, 409, { error: `Select a valid hair origin for ${product.name}.` });
+        }
+        const variantPrice = calculateVariantPrice(product, selectedOrigin, selectedSize);
         normalizedItems.push({
-          ...safeItems([{ ...item, name: product.name, price: Number(product.price), quantity }])[0],
+          ...safeItems([{ ...item, name: product.name, price: variantPrice, quantity }])[0],
           vendorUserId: product.vendor_user_id,
           vendorProductId: product.id,
         });

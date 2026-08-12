@@ -11,7 +11,9 @@ const allowedCollections = ["everyday", "signature", "luxe"];
 const normalizeStringArray = (value, label) => {
   if (!Array.isArray(value) || value.length > 20) throw new Error(`${label} are invalid.`);
   const values = value.map((item) => String(item || "").trim());
-  if (values.some((item) => !item || item.length > 80)) throw new Error(`${label} are invalid.`);
+  if (values.some((item) => !item || item.length > 80 || ["__proto__", "prototype", "constructor"].includes(item.toLowerCase()))) {
+    throw new Error(`${label} are invalid.`);
+  }
   return [...new Set(values)];
 };
 
@@ -31,6 +33,32 @@ const normalizeDetails = (value) => {
     details[key] = detailValue;
   }
   return details;
+};
+
+const normalizeOptionPrices = (value, options, label) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} prices are invalid.`);
+  }
+  const optionSet = new Set(options);
+  const priceEntries = Object.entries(value);
+  if (priceEntries.length !== optionSet.size) {
+    throw new Error(`Set a price for every selected ${label.toLowerCase()}.`);
+  }
+  const prices = Object.create(null);
+  for (const option of options) {
+    if (!Object.prototype.hasOwnProperty.call(value, option)) {
+      throw new Error(`Set a price for every selected ${label.toLowerCase()}.`);
+    }
+    const price = Number(value[option]);
+    if (!Number.isFinite(price) || price < 0 || price > 9999999999.99) {
+      throw new Error(`Enter a valid price for ${option}.`);
+    }
+    prices[option] = Math.round(price * 100) / 100;
+  }
+  for (const [option] of priceEntries) {
+    if (!optionSet.has(option)) throw new Error(`${label} prices are invalid.`);
+  }
+  return prices;
 };
 
 const normalizeProduct = (body, partial = false) => {
@@ -94,6 +122,20 @@ const normalizeProduct = (body, partial = false) => {
     product.hairOrigins = normalizeStringArray(source.hairOrigins || [], "Hair origins");
   }
 
+  if (!partial || source.sizePrices !== undefined || source.sizes !== undefined) {
+    const sizes = product.sizes || normalizeStringArray(source.sizes || [], "Sizes");
+    const fallbackPrice = product.price ?? Number(source.price);
+    const priceSource = source.sizePrices ?? Object.fromEntries(sizes.map((size) => [size, fallbackPrice]));
+    product.sizePrices = normalizeOptionPrices(priceSource, sizes, "Size");
+  }
+
+  if (!partial || source.hairOriginPrices !== undefined || source.hairOrigins !== undefined) {
+    const origins = product.hairOrigins || normalizeStringArray(source.hairOrigins || [], "Hair origins");
+    const fallbackPrice = product.price ?? Number(source.price);
+    const priceSource = source.hairOriginPrices ?? Object.fromEntries(origins.map((origin) => [origin, fallbackPrice]));
+    product.hairOriginPrices = normalizeOptionPrices(priceSource, origins, "Hair origin");
+  }
+
   if (!partial || source.details !== undefined) {
     product.details = normalizeDetails(source.details || {});
   }
@@ -122,6 +164,8 @@ const toRow = (product) => {
     status: "status",
     sizes: "sizes",
     hairOrigins: "hair_origins",
+    sizePrices: "size_prices",
+    hairOriginPrices: "hair_origin_prices",
     details: "details",
   };
   for (const [source, target] of Object.entries(mappings)) {

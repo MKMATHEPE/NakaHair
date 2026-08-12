@@ -29,6 +29,8 @@ const toPublicProduct = (row) => {
     images,
     sizes: row.sizes || [],
     hairOrigins: row.hair_origins || [],
+    sizePrices: row.size_prices || {},
+    hairOriginPrices: row.hair_origin_prices || {},
     details: row.details || {},
     stockQuantity: row.stock_quantity,
   };
