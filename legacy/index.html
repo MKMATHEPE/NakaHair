@@ -2715,25 +2715,11 @@
         height: 100%;
         object-fit: cover;
       }
-      .vendor-products-heading {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 12px 20px;
-        margin-bottom: 18px;
-      }
-      .vendor-products-heading-copy {
-        flex: 1 1 520px;
-        min-width: 0;
-      }
-      .vendor-products-heading .checkout-copy {
-        margin-bottom: 0;
-      }
       .vendor-add-product-button {
-        flex: 0 0 auto;
         white-space: nowrap;
         padding: 8px 11px;
+        letter-spacing: 0;
+        text-transform: none;
       }
       .admin-report-grid {
         display: grid;
@@ -6390,16 +6376,15 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
       }
 
       function renderVendorProducts(panel) {
-        const rows = vendorProductsCache.length
-          ? '<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th>Preview</th><th></th></tr></thead><tbody>' +
-            vendorProductsCache.map((product) => {
+        const productRows = vendorProductsCache.length
+          ? vendorProductsCache.map((product) => {
               const primaryImage = Array.isArray(product.image_urls) && product.image_urls.length ? product.image_urls[0] : product.image_url || "";
               const thumbnail = '<div class="vendor-product-table-thumb"><span>No image</span>' + productImgHTML(primaryImage, product.name) + '</div>';
               return '<tr><td><strong>' + escapeHtml(product.name) + '</strong><br><small>' + escapeHtml(product.product_type) + '</small></td><td>' + formatCurrency(Number(product.price)) + '</td><td>' + Number(product.stock_quantity) + '</td><td>' + escapeHtml(product.status) + '</td><td>' + thumbnail + '</td><td><button class="admin-table-action" onclick="editVendorProduct(' + Number(product.id) + ')">Edit</button> <button class="admin-table-action" onclick="deleteVendorProduct(' + Number(product.id) + ')">Delete</button></td></tr>';
-            }).join('') +
-            '</tbody></table></div>'
-          : '<p class="account-empty">You have not created any products yet.</p>';
-        panel.innerHTML = '<div class="vendor-products-heading"><div class="vendor-products-heading-copy"><h3>My Products</h3><p class="checkout-copy">Create and manage only the products owned by your vendor profile. Active products with stock appear in the store.</p></div><button type="button" class="admin-table-action vendor-add-product-button" onclick="openNewVendorProductEditor()">+ Add Product</button></div>' + rows + '<div id="vendor-product-editor-wrap" hidden><h3 style="margin-top:32px">Product Editor</h3>' + vendorProductFormMarkup() + '</div>';
+            }).join('')
+          : '<tr><td colspan="6"><p class="account-empty">You have not created any products yet.</p></td></tr>';
+        const rows = '<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th>Preview</th><th><button type="button" class="admin-table-action vendor-add-product-button" onclick="openNewVendorProductEditor()">+ Add Product</button></th></tr></thead><tbody>' + productRows + '</tbody></table></div>';
+        panel.innerHTML = '<h3>My Products</h3><p class="checkout-copy">Create and manage only the products owned by your vendor profile. Active products with stock appear in the store.</p>' + rows + '<div id="vendor-product-editor-wrap" hidden><h3 style="margin-top:32px">Product Editor</h3>' + vendorProductFormMarkup() + '</div>';
         resetVendorProductForm();
       }
 
