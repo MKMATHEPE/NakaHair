@@ -2704,6 +2704,33 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
           const topProducts = Object.entries(productSales)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5);
+          const now = new Date();
+          const monthlySales = Array.from({ length: 6 }, (_, index) => {
+            const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+            return {
+              key: date.getFullYear() + "-" + date.getMonth(),
+              label: date.toLocaleDateString(undefined, { month: "short" }),
+              value: 0,
+            };
+          });
+          activeOrders.forEach((order) => {
+            const date = new Date(order.created_at);
+            if (Number.isNaN(date.getTime())) return;
+            const month = monthlySales.find((item) => item.key === date.getFullYear() + "-" + date.getMonth());
+            if (month) month.value += Number(order.subtotal || 0);
+          });
+          const maxMonthlySales = Math.max(1, ...monthlySales.map((month) => month.value));
+          const statusEntries = Object.entries(statusCounts);
+          const chartColors = ["#111111", "#b8956a", "#777777", "#d6c1a5", "#8d7458", "#dedede"];
+          let statusProgress = 0;
+          const statusGradient = statusEntries.length
+            ? "conic-gradient(" + statusEntries.map(([status, count], index) => {
+                const start = statusProgress;
+                statusProgress += (Number(count) / orders.length) * 100;
+                return chartColors[index % chartColors.length] + " " + start + "% " + statusProgress + "%";
+              }).join(",") + ")"
+            : "#eeeeee";
+          const maxProductUnits = Math.max(1, ...topProducts.map(([, units]) => Number(units)));
 
           panel.innerHTML =
             '<h3>Analytics</h3><p class="checkout-copy">A summary of your products and vendor orders.</p>' +
@@ -2713,19 +2740,22 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
               '<div class="vendor-analytics-card"><span>Active products</span><strong>' + activeProducts + '</strong></div>' +
               '<div class="vendor-analytics-card"><span>Inventory units</span><strong>' + inventoryUnits + '</strong></div>' +
             '</div>' +
-            '<div class="vendor-analytics-section"><h4>Order status</h4>' +
-              (orders.length
-                ? '<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Status</th><th>Orders</th></tr></thead><tbody>' +
-                  Object.entries(statusCounts).map(([status, count]) => '<tr><td>' + escapeHtml(status) + '</td><td>' + count + '</td></tr>').join('') +
-                  '</tbody></table></div>'
-                : '<p class="account-empty">No order activity yet.</p>') +
+            '<div class="vendor-chart-card"><div class="vendor-chart-title"><h4>Sales trend</h4><span>Last 6 months</span></div>' +
+              '<div class="vendor-sales-chart" role="img" aria-label="Sales value by month for the last six months">' +
+                monthlySales.map((month) => '<div class="vendor-sales-bar-wrap"><div class="vendor-sales-bar-track"><div class="vendor-sales-bar" style="height:' + Math.max(month.value ? 4 : 0, (month.value / maxMonthlySales) * 100) + '%"><strong>' + formatCurrency(month.value) + '</strong></div></div><span>' + escapeHtml(month.label) + '</span></div>').join('') +
+              '</div>' +
             '</div>' +
-            '<div class="vendor-analytics-section"><h4>Top products</h4>' +
-              (topProducts.length
-                ? '<div style="overflow-x:auto"><table class="admin-table"><thead><tr><th>Product</th><th>Units ordered</th></tr></thead><tbody>' +
-                  topProducts.map(([name, units]) => '<tr><td>' + escapeHtml(name) + '</td><td>' + units + '</td></tr>').join('') +
-                  '</tbody></table></div>'
-                : '<p class="account-empty">Product sales will appear here after your first order.</p>') +
+            '<div class="vendor-chart-split">' +
+              '<div class="vendor-chart-card"><div class="vendor-chart-title"><h4>Order status</h4><span>' + orders.length + ' total</span></div>' +
+                (orders.length
+                  ? '<div class="vendor-donut-layout"><div class="vendor-donut" style="background:' + statusGradient + '" role="img" aria-label="Order status distribution"></div><div class="vendor-chart-legend">' + statusEntries.map(([status, count], index) => '<div><i style="background:' + chartColors[index % chartColors.length] + '"></i><span>' + escapeHtml(status) + '</span><strong>' + count + '</strong></div>').join('') + '</div></div>'
+                  : '<p class="account-empty">No order activity yet.</p>') +
+              '</div>' +
+              '<div class="vendor-chart-card"><div class="vendor-chart-title"><h4>Top products</h4><span>Units ordered</span></div>' +
+                (topProducts.length
+                  ? '<div class="vendor-product-bars" role="img" aria-label="Top products by units ordered">' + topProducts.map(([name, units]) => '<div><div class="vendor-product-bar-label"><span>' + escapeHtml(name) + '</span><strong>' + units + '</strong></div><div class="vendor-product-bar-track"><div class="vendor-product-bar-fill" style="width:' + ((Number(units) / maxProductUnits) * 100) + '%"></div></div></div>').join('') + '</div>'
+                  : '<p class="account-empty">Product sales will appear here after your first order.</p>') +
+              '</div>' +
             '</div>' +
             '<p class="checkout-copy" style="margin-top:20px">Completed orders: ' + completedOrders + ' · Draft products: ' + (products.length - activeProducts) + '</p>';
         } catch (error) {
