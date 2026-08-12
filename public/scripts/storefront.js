@@ -1605,6 +1605,9 @@
             currentPortal = "customer";
             safeLocalStorageSet("NAKA_portal_mode", "customer");
           }
+          if (window.activateSupabasePortal) {
+            await window.activateSupabasePortal(loginMode);
+          }
           loginSubmissionInProgress = true;
           const { data, error } =
             await window.supabaseClient.auth.signInWithPassword({
@@ -1645,6 +1648,9 @@
 
             currentPortal = "vendor";
             safeLocalStorageSet("NAKA_portal_mode", "vendor");
+            safeLocalStorageSet("NAKA_session_type", "vendor");
+          } else {
+            safeLocalStorageSet("NAKA_session_type", "customer");
           }
 
           closeLoginModal();
@@ -1845,7 +1851,13 @@
         }
 
         try {
-    const { data, error } = await window.supabaseClient.auth.signUp({
+          if (window.activateSupabasePortal) {
+            await window.activateSupabasePortal("customer");
+          }
+          currentPortal = "customer";
+          safeLocalStorageSet("NAKA_portal_mode", "customer");
+          safeLocalStorageSet("NAKA_session_type", "customer");
+          const { data, error } = await window.supabaseClient.auth.signUp({
   email,
   password,
   options: {
@@ -1975,7 +1987,7 @@ async function refreshAuthUI() {
   currentUserRole = currentUser.role;
   currentUserName = currentUser.firstName || user.email;
   currentPortal =
-    currentUser.isVendor && safeLocalStorageGet("NAKA_portal_mode") === "vendor"
+    currentUser.isVendor && safeLocalStorageGet("NAKA_session_type") === "vendor"
       ? "vendor"
       : "customer";
 
@@ -2003,6 +2015,7 @@ function openVendorApplicationFromEmail() {
 
   currentPortal = "customer";
   safeLocalStorageSet("NAKA_portal_mode", "customer");
+  safeLocalStorageSet("NAKA_session_type", "customer");
   openAccount(null, "vendor");
 
   if (!currentUser.isVendor) {
@@ -2144,14 +2157,17 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         }
       }
 
-      function logout() {
+      async function logout() {
         if (authToken && currentUserRole === "customer")
           fetch("/api/auth/logout", {
             method: "POST",
             headers: { Authorization: "Bearer " + authToken },
           }).catch(() => {});
-        if (currentUserRole === "customer") {
-          window.supabaseClient.auth.signOut().catch(() => {});
+        if (["customer", "vendor"].includes(currentUserRole)) {
+          await window.supabaseClient.auth.signOut().catch(() => {});
+          if (window.clearSupabasePortalSessions) {
+            await window.clearSupabasePortalSessions();
+          }
         }
         authToken = null;
         currentUserRole = null;
@@ -2163,6 +2179,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         safeLocalStorageRemove("NAKA_user_token");
         safeLocalStorageRemove("NAKA_user_role");
         safeLocalStorageRemove("NAKA_portal_mode");
+        safeLocalStorageRemove("NAKA_session_type");
         updateUserUI();
         if (currentAccountRoute()) {
           history.replaceState(null, "", "/");
