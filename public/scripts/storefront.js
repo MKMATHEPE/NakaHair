@@ -2521,7 +2521,7 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
             }).join('') +
             '</tbody></table></div>'
           : '<p class="account-empty">You have not created any products yet.</p>';
-        panel.innerHTML = '<h3>My Products</h3><p class="checkout-copy">Create and manage only the products owned by your vendor profile. Active products with stock appear in the store.</p>' + rows + '<h3 style="margin-top:32px">Product Editor</h3>' + vendorProductFormMarkup();
+        panel.innerHTML = '<h3>My Products</h3><p class="checkout-copy">Create and manage only the products owned by your vendor profile. Active products with stock appear in the store.</p>' + rows + '<div id="vendor-product-editor-wrap" hidden><h3 style="margin-top:32px">Product Editor</h3>' + vendorProductFormMarkup() + '</div>';
         resetVendorProductForm();
       }
 
@@ -2621,11 +2621,16 @@ window.supabaseClient.auth.onAuthStateChange(async (event) => {
         renderVendorImageGallery();
         ["vendor-add-origin-form", "vendor-add-size-form", "vendor-add-detail-form"].forEach((id) => { document.getElementById(id).hidden = true; });
         renderVendorCustomSelections();
+        const editorWrap = document.getElementById("vendor-product-editor-wrap");
+        if (editorWrap) editorWrap.hidden = true;
       }
 
       function editVendorProduct(id) {
         const product = vendorProductsCache.find((item) => Number(item.id) === Number(id));
         if (!product) return;
+        const editorWrap = document.getElementById("vendor-product-editor-wrap");
+        if (!editorWrap) return;
+        editorWrap.hidden = false;
         document.getElementById("vendor-product-id").value = product.id;
         document.getElementById("vendor-product-name").value = product.name || "";
         document.getElementById("vendor-product-type").value = product.product_type || "";
