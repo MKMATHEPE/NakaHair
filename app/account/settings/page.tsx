@@ -1,5 +1,5 @@
-import { StorefrontPage } from "../../storefront-page";
+import { SettingsPanel } from "@/components/account/settings-panel";
 
 export default function AccountSettingsPage() {
-  return <StorefrontPage accountPage />;
+  return <SettingsPanel />;
 }

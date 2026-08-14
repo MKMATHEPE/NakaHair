@@ -119,7 +119,6 @@ const normalizeProduct = (body, partial = false) => {
     tag: 50,
     shortDescription: 300,
     description: 3000,
-    imageUrl: 500,
   };
 
   for (const [field, max] of Object.entries(textFields)) {
@@ -219,7 +218,6 @@ const toRow = (product) => {
     tag: "tag",
     shortDescription: "short_description",
     description: "description",
-    imageUrl: "image_url",
     stockQuantity: "stock_quantity",
     status: "status",
     sizes: "sizes",
@@ -305,17 +303,22 @@ module.exports = async function handler(request, response) {
         : rows[0].image_url ? [rows[0].image_url] : [])];
       if (imageUrls.length) {
         const { url, key } = getConfig();
-        imageUrls.forEach((imageUrl) => {
+        const deletions = imageUrls.map(async (imageUrl) => {
           const markerIndex = String(imageUrl).indexOf(marker);
           if (markerIndex === -1) return;
           let objectPath = "";
           try { objectPath = decodeURIComponent(String(imageUrl).slice(markerIndex + marker.length)); } catch {}
-          if (!objectPath) return;
-          fetch(`${url}/storage/v1/object/vendor-products/${objectPath}`, {
+          if (!objectPath.startsWith(`${access.user.id}/`)) return;
+          const deleteResult = await fetch(`${url}/storage/v1/object/vendor-products/${objectPath}`, {
             method: "DELETE",
             headers: serviceHeaders(key),
-          }).catch((error) => console.error("Unable to remove deleted vendor image:", error));
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!deleteResult.ok) {
+            console.error("Unable to remove deleted vendor image:", deleteResult.status);
+          }
         });
+        await Promise.allSettled(deletions);
       }
       return json(response, 200, { deleted: true });
     }

@@ -48,4 +48,39 @@ describe("runLegacyHandler", () => {
 
     await expect(response.json()).resolves.toEqual([]);
   });
+
+  it("rejects request bodies above the compatibility limit", async () => {
+    const response = await runLegacyHandler(
+      request("https://example.test/api/items", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ payload: "x".repeat(3 * 1024 * 1024) }),
+      }),
+      async (_legacyRequest, legacyResponse) => {
+        legacyResponse.status(200).end("should not run");
+      },
+    );
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "The request is too large.",
+      code: "payload_too_large",
+    });
+  });
+
+  it("rejects mutable requests that are not JSON", async () => {
+    const response = await runLegacyHandler(
+      request("https://example.test/api/items", {
+        method: "POST",
+        headers: { "content-type": "text/plain" },
+        body: "unsafe input",
+      }),
+      async (_legacyRequest, legacyResponse) => {
+        legacyResponse.status(200).end("should not run");
+      },
+    );
+
+    expect(response.status).toBe(415);
+    await expect(response.json()).resolves.toMatchObject({ code: "unsupported_media_type" });
+  });
 });

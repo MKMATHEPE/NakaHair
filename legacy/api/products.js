@@ -43,6 +43,10 @@ module.exports = async function handler(request, response) {
     return json(response, 405, { error: "Method not allowed." });
   }
 
+  if (!process.env.SUPABASE_URL || !(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)) {
+    return json(response, 200, seedProducts);
+  }
+
   try {
     const result = await supabaseRest(
       "vendor_products?select=*&status=eq.active&stock_quantity=gt.0&order=created_at.desc",

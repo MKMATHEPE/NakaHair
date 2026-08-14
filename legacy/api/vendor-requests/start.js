@@ -1,7 +1,10 @@
-const json = (response, status, body) => {
-  response.status(status).setHeader("Content-Type", "application/json");
-  response.end(JSON.stringify(body));
-};
+const {
+  consumeRateLimit,
+  getAuthenticatedUser,
+  getConfig,
+  json,
+  rateLimitKey,
+} = require("../../../lib/supabase-server");
 
 module.exports = async function handler(request, response) {
   if (request.method !== "POST") {
@@ -9,44 +12,42 @@ module.exports = async function handler(request, response) {
     return json(response, 405, { error: "Method not allowed." });
   }
 
-  const supabaseUrl = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
-  // Supabase's newer `sb_secret_...` keys replace the legacy JWT-shaped
-  // service-role key. Accept either server-only variable during migration.
-  const serviceRoleKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
   const appUrl = String(process.env.APP_URL || "").replace(/\/$/, "");
 
-  if (!supabaseUrl || !serviceRoleKey || !appUrl) {
+  let parsedAppUrl;
+  try {
+    parsedAppUrl = new URL(appUrl);
+  } catch {
+    parsedAppUrl = null;
+  }
+  const safeAppUrl = parsedAppUrl
+    && (parsedAppUrl.protocol === "https:"
+      || (parsedAppUrl.protocol === "http:" && ["localhost", "127.0.0.1"].includes(parsedAppUrl.hostname)));
+  if (!safeAppUrl) {
     console.error(
-      "Missing SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SECRET_KEY, or APP_URL.",
+      "APP_URL must be HTTPS (or local HTTP during development).",
     );
     return json(response, 500, { error: "Vendor applications are temporarily unavailable." });
   }
 
-  const authorization = request.headers.authorization || "";
-  const accessToken = authorization.replace(/^Bearer\s+/i, "");
-  if (!accessToken || accessToken === authorization) {
-    return json(response, 401, { error: "Please sign in before requesting an application link." });
-  }
-
   try {
-    // Resolve the email from the verified Supabase session; never trust an
-    // address supplied by the browser for this privileged email operation.
-    const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    if (!userResponse.ok) {
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
       return json(response, 401, { error: "Your session has expired. Please sign in again." });
     }
-
-    const user = await userResponse.json();
     if (!user.email) {
       return json(response, 400, { error: "Your account does not have an email address." });
     }
+    const allowed = await consumeRateLimit(
+      rateLimitKey(request, "vendor-application-link", user.id),
+      3,
+      15 * 60,
+    );
+    if (!allowed) {
+      return json(response, 429, { error: "Please wait before requesting another application link." });
+    }
+
+    const { url: supabaseUrl, key: serviceRoleKey } = getConfig();
 
     // Supabase sends the existing user a one-time Magic Link. create_user is
     // disabled so this endpoint cannot be used to create arbitrary accounts.
@@ -64,9 +65,10 @@ module.exports = async function handler(request, response) {
         options: {
           // Supabase's implicit auth flow uses the URL fragment for session
           // tokens, so keep our application destination in the query string.
-          email_redirect_to: `${appUrl}/vendor/profile?vendor_application=1`,
+          email_redirect_to: `${parsedAppUrl.origin}/account/vendor?vendor_application=1`,
         },
       }),
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!emailResponse.ok) {

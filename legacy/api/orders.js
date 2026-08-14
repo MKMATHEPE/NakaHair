@@ -1,13 +1,16 @@
 const seedProducts = require("../../server/seed-products.json");
 const {
+  consumeRateLimit,
   getAccessToken,
   getAuthenticatedUser,
   json,
+  rateLimitKey,
   supabaseRest,
 } = require("../../lib/supabase-server");
 const { calculateVariantPrice } = require("../../lib/product-variant-pricing");
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const getVendorId = (id) => {
   const match = /^vendor-(\d+)$/.exec(String(id));
@@ -57,8 +60,9 @@ module.exports = async function handler(request, response) {
     const deliveryAddress = String(body.deliveryAddress || "").trim();
     const deliveryMethod = String(body.deliveryMethod || "");
     const paymentMethod = String(body.paymentMethod || "");
+    const idempotencyKey = String(body.idempotencyKey || "").trim();
 
-    if (!items.length || items.length > 100 || !emailPattern.test(email) || !phone || !deliveryAddress) {
+    if (!items.length || items.length > 100 || !emailPattern.test(email) || !phone || !deliveryAddress || !uuidPattern.test(idempotencyKey)) {
       return json(response, 400, { error: "Complete checkout details are required." });
     }
     if (!["Standard Delivery", "Express Delivery"].includes(deliveryMethod)) {
@@ -75,6 +79,15 @@ module.exports = async function handler(request, response) {
     if (getAccessToken(request)) {
       customer = await getAuthenticatedUser(request);
       if (!customer) return json(response, 401, { error: "Your session has expired. Please sign in again." });
+    }
+
+    const allowed = await consumeRateLimit(
+      rateLimitKey(request, "checkout", customer?.id || email),
+      10,
+      15 * 60,
+    );
+    if (!allowed) {
+      return json(response, 429, { error: "Too many checkout attempts. Please try again later." });
     }
 
     const vendorIds = [...new Set(items.map((item) => getVendorId(item.id)).filter(Boolean))];
@@ -138,61 +151,36 @@ module.exports = async function handler(request, response) {
     const deliveryFee = deliveryMethod === "Express Delivery" ? 250 : 150;
     const total = subtotal + deliveryFee;
     const orderNumber = createOrderNumber();
-    const orderResult = await supabaseRest("store_orders", {
+    const orderResult = await supabaseRest("rpc/create_store_order_atomic", {
       method: "POST",
-      headers: { Prefer: "return=representation" },
       body: JSON.stringify({
-        order_number: orderNumber,
-        customer_user_id: customer?.id || null,
-        email,
-        phone,
-        delivery_address: deliveryAddress,
-        delivery_method: deliveryMethod,
-        payment_method: paymentMethod,
-        items: normalizedItems,
-        subtotal,
-        delivery_fee: deliveryFee,
-        total,
+        p_idempotency_key: idempotencyKey,
+        p_order_number: orderNumber,
+        p_customer_user_id: customer?.id || null,
+        p_email: email,
+        p_phone: phone,
+        p_delivery_address: deliveryAddress,
+        p_delivery_method: deliveryMethod,
+        p_payment_method: paymentMethod,
+        p_items: normalizedItems,
+        p_subtotal: subtotal,
+        p_delivery_fee: deliveryFee,
+        p_total: total,
       }),
     });
     if (!orderResult.ok) {
       const errorBody = await orderResult.text();
       console.error("Unable to create order:", orderResult.status, errorBody);
+      if (orderResult.status === 409) {
+        return json(response, 409, { error: "A product in your cart is no longer available in the requested quantity." });
+      }
       return json(response, 502, { error: "Unable to place your order." });
     }
-    const order = (await orderResult.json())[0];
-
-    const byVendor = new Map();
-    for (const item of normalizedItems.filter((entry) => entry.vendorUserId)) {
-      if (!byVendor.has(item.vendorUserId)) byVendor.set(item.vendorUserId, []);
-      byVendor.get(item.vendorUserId).push(item);
-    }
-    const vendorRows = [...byVendor.entries()].map(([vendorUserId, vendorItems]) => ({
-      order_id: order.id,
-      vendor_user_id: vendorUserId,
-      order_number: orderNumber,
-      customer_email: email,
-      customer_phone: phone,
-      delivery_address: deliveryAddress,
-      delivery_method: deliveryMethod,
-      items: vendorItems,
-      subtotal: vendorItems.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    }));
-
-    if (vendorRows.length) {
-      const vendorOrderResult = await supabaseRest("vendor_orders", {
-        method: "POST",
-        body: JSON.stringify(vendorRows),
-      });
-      if (!vendorOrderResult.ok) {
-        const errorBody = await vendorOrderResult.text();
-        console.error("Unable to create vendor fulfillment:", vendorOrderResult.status, errorBody);
-        await supabaseRest(`store_orders?id=eq.${order.id}`, { method: "DELETE" });
-        return json(response, 502, { error: "Unable to create vendor fulfillment." });
-      }
-    }
-
-    return json(response, 201, { orderNumber, total });
+    const createdOrder = await orderResult.json();
+    return json(response, 201, {
+      orderNumber: createdOrder.orderNumber || orderNumber,
+      total: Number(createdOrder.total ?? total),
+    });
   } catch (error) {
     console.error("Order request failed:", error);
     return json(response, 500, { error: "Unable to process your order." });

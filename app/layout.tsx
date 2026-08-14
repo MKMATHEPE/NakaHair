@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { AppProviders } from "@/components/providers/app-providers";
+import { SiteFooter } from "@/components/shared/site-footer";
+import { SiteHeader } from "@/components/shared/site-header";
+
+import "./globals.css";
+
 export const metadata: Metadata = {
   title: "NAKA Hair",
   description: "Premium hair, wigs, bundles, closures, and frontals.",
@@ -17,7 +23,13 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <AppProviders>
+          <SiteHeader />
+          {children}
+          <SiteFooter />
+        </AppProviders>
+      </body>
     </html>
   );
 }

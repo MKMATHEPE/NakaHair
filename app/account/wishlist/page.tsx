@@ -1,5 +1,5 @@
-import { StorefrontPage } from "../../storefront-page";
+import { WishlistPanel } from "@/components/account/wishlist-panel";
 
 export default function AccountWishlistPage() {
-  return <StorefrontPage accountPage />;
+  return <WishlistPanel />;
 }

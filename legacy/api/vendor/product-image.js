@@ -1,3 +1,5 @@
+const { randomUUID } = require("node:crypto");
+
 const {
   getApprovedVendor,
   getConfig,
@@ -69,11 +71,19 @@ module.exports = async function handler(request, response) {
       );
       if (!updateResult.ok) return json(response, 502, { error: "Unable to remove the product image." });
       const objectPath = storageObjectPath(imageUrl);
-      if (objectPath) {
-        fetch(`${url}/storage/v1/object/vendor-products/${objectPath}`, {
-          method: "DELETE",
-          headers: serviceHeaders(key),
-        }).catch((error) => console.error("Unable to delete vendor product image:", error));
+      if (objectPath && objectPath.startsWith(`${access.user.id}/`)) {
+        try {
+          const deleteResult = await fetch(`${url}/storage/v1/object/vendor-products/${objectPath}`, {
+            method: "DELETE",
+            headers: serviceHeaders(key),
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!deleteResult.ok) {
+            console.error("Unable to delete vendor product image:", deleteResult.status);
+          }
+        } catch (error) {
+          console.error("Unable to delete vendor product image:", error);
+        }
       }
       return json(response, 200, (await updateResult.json())[0]);
     }
@@ -94,11 +104,12 @@ module.exports = async function handler(request, response) {
       return json(response, 400, { error: "The selected file is not a valid image." });
     }
 
-    const objectPath = `${access.user.id}/${id}-${Date.now()}-${Math.floor(Math.random() * 100000)}.${allowedTypes[contentType]}`;
+    const objectPath = `${access.user.id}/${id}-${randomUUID()}.${allowedTypes[contentType]}`;
     const uploadResult = await fetch(`${url}/storage/v1/object/vendor-products/${objectPath}`, {
       method: "POST",
       headers: serviceHeaders(key, { "Content-Type": contentType, "x-upsert": "false" }),
       body: image,
+      signal: AbortSignal.timeout(8000),
     });
     if (!uploadResult.ok) {
       const body = await uploadResult.text();
@@ -120,6 +131,7 @@ module.exports = async function handler(request, response) {
       await fetch(`${url}/storage/v1/object/vendor-products/${objectPath}`, {
         method: "DELETE",
         headers: serviceHeaders(key),
+        signal: AbortSignal.timeout(8000),
       });
       return json(response, 502, { error: "Unable to attach the image to the product." });
     }

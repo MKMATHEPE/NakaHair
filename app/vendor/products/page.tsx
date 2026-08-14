@@ -1,5 +1,5 @@
-import { StorefrontPage } from "../../storefront-page";
+import { VendorProductsPanel } from "@/components/vendor/vendor-products-panel";
 
 export default function VendorProductsPage() {
-  return <StorefrontPage accountPage vendorPage />;
+  return <VendorProductsPanel />;
 }
