@@ -13,19 +13,59 @@ type EditorState = {
   product: VendorProduct | null;
   origins: string[];
   sizes: string[];
+  texture: string;
   variants: Record<string, number>;
 };
 
 const variantKey = (origin: string, size: string) => JSON.stringify([origin, size]);
-const splitOptions = (value: FormDataEntryValue | null) => [...new Set(
-  String(value || "").split(",").map((item) => item.trim()).filter(Boolean),
-)].slice(0, 20);
+const hairOriginOptions = [
+  "Synthetic Blend", "Human Hair Blend", "Brazilian Remy", "Vietnamese Remy",
+  "Malaysian Remy", "Peruvian Remy", "Cambodian Remy", "Brazilian Virgin",
+  "Vietnamese Virgin", "Malaysian Virgin", "Peruvian Virgin", "Cambodian Virgin",
+  "Indian Virgin",
+];
+const sizeOptions = Array.from({ length: 17 }, (_, index) => `${8 + index * 2}\"`);
+const textureOptions = [
+  "Straight", "Silky Straight", "Straight Bob", "Body Wave", "Loose Wave",
+  "Deep Wave", "Water Wave", "Loose Curly", "Deep Curly", "Kinky Curly",
+  "Jerry Curl", "Afro Kinky", "Double Drawn Straight", "Pixie Cut",
+];
+
+function optionsWithExisting(options: string[], selected: string[]) {
+  return [...new Set([...options, ...selected])];
+}
+
+function OptionSelector({
+  legend,
+  onToggle,
+  options,
+  selected,
+}: {
+  legend: string;
+  onToggle(value: string): void;
+  options: string[];
+  selected: string[];
+}) {
+  return <fieldset className="naka-choice-fieldset naka-span-2">
+    <legend>{legend}</legend>
+    <small>Select all that apply.</small>
+    <div className="naka-choice-grid">
+      {optionsWithExisting(options, selected).map((option) => <button
+        aria-pressed={selected.includes(option)}
+        key={option}
+        onClick={() => onToggle(option)}
+        type="button"
+      >{option}</button>)}
+    </div>
+  </fieldset>;
+}
 
 function stateFor(product: VendorProduct | null): EditorState {
   return {
     product,
     origins: product?.hair_origins || [],
     sizes: product?.sizes || [],
+    texture: product?.details?.Texture || "Straight",
     variants: Object.fromEntries((product?.variant_prices || []).map((variant) => [
       variantKey(variant.hairOrigin || "", variant.size || ""),
       Number(variant.price),
@@ -73,6 +113,19 @@ export function VendorProductsPanel() {
     setEditor(stateFor(product));
   }
 
+  function toggleOption(field: "origins" | "sizes", value: string) {
+    setEditor((current) => {
+      if (!current) return current;
+      const selected = current[field];
+      return {
+        ...current,
+        [field]: selected.includes(value)
+          ? selected.filter((option) => option !== value)
+          : [...selected, value],
+      };
+    });
+  }
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editor) return;
@@ -80,8 +133,8 @@ export function VendorProductsPanel() {
     setError("");
     const data = new FormData(event.currentTarget);
     const basePrice = Number(data.get("price"));
-    const origins = splitOptions(data.get("origins"));
-    const sizes = splitOptions(data.get("sizes"));
+    const origins = editor.origins;
+    const sizes = editor.sizes;
     const optionOrigins = origins.length ? origins : [""];
     const optionSizes = sizes.length ? sizes : [""];
     const variantPrices: ProductVariantPrice[] = origins.length || sizes.length
@@ -108,7 +161,7 @@ export function VendorProductsPanel() {
       sizes,
       variantPrices,
       details: {
-        Texture: String(data.get("texture") || "Not specified"),
+        Texture: editor.texture,
         Colour: String(data.get("colour") || "Natural Black (1B)"),
       },
     };
@@ -212,9 +265,9 @@ export function VendorProductsPanel() {
                 <label>Old price<input defaultValue={editor.product?.old_price || ""} min={0} name="oldPrice" step="0.01" type="number" /></label>
                 <label>Stock<input defaultValue={editor.product?.stock_quantity || 0} min={0} name="stockQuantity" required type="number" /></label>
                 <label>Visibility<select defaultValue={editor.product?.status || "draft"} name="status"><option value="draft">Draft</option><option value="active">Active in Store</option></select></label>
-                <label>Hair origins, comma separated<input defaultValue={editor.origins.join(", ")} name="origins" onBlur={(event) => setEditor((current) => current ? { ...current, origins: splitOptions(event.target.value) } : current)} /></label>
-                <label>Sizes, comma separated<input defaultValue={editor.sizes.join(", ")} name="sizes" onBlur={(event) => setEditor((current) => current ? { ...current, sizes: splitOptions(event.target.value) } : current)} /></label>
-                <label>Texture<input defaultValue={editor.product?.details?.Texture || ""} name="texture" /></label>
+                <OptionSelector legend="Hair origins" onToggle={(value) => toggleOption("origins", value)} options={hairOriginOptions} selected={editor.origins} />
+                <OptionSelector legend="Sizes" onToggle={(value) => toggleOption("sizes", value)} options={sizeOptions} selected={editor.sizes} />
+                <label>Texture<select onChange={(event) => setEditor((current) => current ? { ...current, texture: event.target.value } : current)} value={editor.texture}>{optionsWithExisting(textureOptions, [editor.texture]).map((texture) => <option key={texture} value={texture}>{texture}</option>)}</select></label>
                 <label>Colour<input defaultValue={editor.product?.details?.Colour || "Natural Black (1B)"} name="colour" /></label>
                 <label className="naka-span-2">Tag<input defaultValue={editor.product?.tag || ""} maxLength={50} name="tag" /></label>
                 <label className="naka-span-2">Short description<textarea defaultValue={editor.product?.short_description || ""} maxLength={300} name="shortDescription" rows={2} /></label>
