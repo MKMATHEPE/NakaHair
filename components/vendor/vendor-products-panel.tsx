@@ -36,17 +36,19 @@ function optionsWithExisting(options: string[], selected: string[]) {
 }
 
 function OptionSelector({
+  compact = false,
   legend,
   onToggle,
   options,
   selected,
 }: {
+  compact?: boolean;
   legend: string;
   onToggle(value: string): void;
   options: string[];
   selected: string[];
 }) {
-  return <fieldset className="naka-choice-fieldset naka-span-2">
+  return <fieldset className={`naka-choice-fieldset naka-span-2${compact ? " naka-choice-fieldset-compact" : ""}`}>
     <legend>{legend}</legend>
     <small>Select all that apply.</small>
     <div className="naka-choice-grid">
@@ -266,7 +268,7 @@ export function VendorProductsPanel() {
                 <label>Stock<input defaultValue={editor.product?.stock_quantity || 0} min={0} name="stockQuantity" required type="number" /></label>
                 <label>Visibility<select defaultValue={editor.product?.status || "draft"} name="status"><option value="draft">Draft</option><option value="active">Active in Store</option></select></label>
                 <OptionSelector legend="Hair origins" onToggle={(value) => toggleOption("origins", value)} options={hairOriginOptions} selected={editor.origins} />
-                <OptionSelector legend="Sizes" onToggle={(value) => toggleOption("sizes", value)} options={sizeOptions} selected={editor.sizes} />
+                <OptionSelector compact legend="Sizes" onToggle={(value) => toggleOption("sizes", value)} options={sizeOptions} selected={editor.sizes} />
                 <label>Texture<select onChange={(event) => setEditor((current) => current ? { ...current, texture: event.target.value } : current)} value={editor.texture}>{optionsWithExisting(textureOptions, [editor.texture]).map((texture) => <option key={texture} value={texture}>{texture}</option>)}</select></label>
                 <label>Colour<input defaultValue={editor.product?.details?.Colour || "Natural Black (1B)"} name="colour" /></label>
                 <label className="naka-span-2">Tag<input defaultValue={editor.product?.tag || ""} maxLength={50} name="tag" /></label>
