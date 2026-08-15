@@ -6,10 +6,5 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const response = await runLegacyHandler(request, handler);
-  response.headers.set(
-    "Cache-Control",
-    "public, s-maxage=30, stale-while-revalidate=300",
-  );
-  return response;
+  return runLegacyHandler(request, handler);
 }

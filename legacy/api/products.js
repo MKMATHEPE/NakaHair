@@ -46,8 +46,8 @@ module.exports = async function handler(request, response) {
     return json(response, 405, { error: "Method not allowed." });
   }
 
-  if (!process.env.SUPABASE_URL || !(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)) {
-    return json(response, 200, seedProducts);
+  if (!process.env.SUPABASE_URL || !(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY)) {
+    return json(response, 503, { error: "The product catalogue is temporarily unavailable." });
   }
 
   try {
@@ -57,7 +57,7 @@ module.exports = async function handler(request, response) {
     if (!result.ok) {
       const errorBody = await result.text();
       console.error("Unable to load vendor products:", result.status, errorBody);
-      return json(response, 200, seedProducts);
+      return json(response, 502, { error: "The product catalogue is temporarily unavailable." });
     }
     const vendorProducts = (await result.json())
       .filter((product) => !publicationIssue(product))
@@ -65,6 +65,6 @@ module.exports = async function handler(request, response) {
     return json(response, 200, [...seedProducts, ...vendorProducts].sort(catalogueSort));
   } catch (error) {
     console.error("Product catalogue failed:", error);
-    return json(response, 200, seedProducts);
+    return json(response, 502, { error: "The product catalogue is temporarily unavailable." });
   }
 };
