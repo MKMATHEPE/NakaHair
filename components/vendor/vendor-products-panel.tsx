@@ -36,18 +36,49 @@ function optionsWithExisting(options: string[], selected: string[]) {
 }
 
 function OptionSelector({
+  allowCustom = false,
   compact = false,
   legend,
   onToggle,
   options,
   selected,
 }: {
+  allowCustom?: boolean;
   compact?: boolean;
   legend: string;
   onToggle(value: string): void;
   options: string[];
   selected: string[];
 }) {
+  const [customValue, setCustomValue] = useState("");
+  const [customError, setCustomError] = useState("");
+
+  function addCustomOption() {
+    const normalized = customValue.trim().replace(/\s+/g, " ");
+    if (normalized.length < 2 || normalized.length > 80) {
+      setCustomError("Enter an origin between 2 and 80 characters.");
+      return;
+    }
+    if (["__proto__", "prototype", "constructor"].includes(normalized.toLowerCase())) {
+      setCustomError("Enter a valid hair origin.");
+      return;
+    }
+    const existing = optionsWithExisting(options, selected).find(
+      (option) => option.toLowerCase() === normalized.toLowerCase(),
+    );
+    if (existing && selected.includes(existing)) {
+      setCustomError(`${existing} is already selected.`);
+      return;
+    }
+    if (!existing && selected.length >= 20) {
+      setCustomError("You can select up to 20 hair origins.");
+      return;
+    }
+    onToggle(existing || normalized);
+    setCustomValue("");
+    setCustomError("");
+  }
+
   return <fieldset className={`naka-choice-fieldset naka-span-2${compact ? " naka-choice-fieldset-compact" : ""}`}>
     <legend>{legend}</legend>
     <small>Select all that apply.</small>
@@ -59,6 +90,28 @@ function OptionSelector({
         type="button"
       >{option}</button>)}
     </div>
+    {allowCustom ? <>
+      <div className="naka-custom-option">
+        <input
+          aria-label="Custom hair origin"
+          maxLength={80}
+          onChange={(event) => {
+            setCustomValue(event.target.value);
+            setCustomError("");
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addCustomOption();
+            }
+          }}
+          placeholder="Add a custom origin"
+          value={customValue}
+        />
+        <button className="naka-small-button" disabled={!customValue.trim()} onClick={addCustomOption} type="button">+ Add origin</button>
+      </div>
+      {customError ? <p aria-live="polite" className="naka-field-error">{customError}</p> : null}
+    </> : null}
   </fieldset>;
 }
 
@@ -267,7 +320,7 @@ export function VendorProductsPanel() {
                 <label>Old price<input defaultValue={editor.product?.old_price || ""} min={0} name="oldPrice" step="0.01" type="number" /></label>
                 <label>Stock<input defaultValue={editor.product?.stock_quantity || 0} min={0} name="stockQuantity" required type="number" /></label>
                 <label>Visibility<select defaultValue={editor.product?.status || "draft"} name="status"><option value="draft">Draft</option><option value="active">Active in Store</option></select></label>
-                <OptionSelector compact legend="Hair origins" onToggle={(value) => toggleOption("origins", value)} options={hairOriginOptions} selected={editor.origins} />
+                <OptionSelector allowCustom compact legend="Hair origins" onToggle={(value) => toggleOption("origins", value)} options={hairOriginOptions} selected={editor.origins} />
                 <OptionSelector compact legend="Sizes" onToggle={(value) => toggleOption("sizes", value)} options={sizeOptions} selected={editor.sizes} />
                 <label>Texture<select onChange={(event) => setEditor((current) => current ? { ...current, texture: event.target.value } : current)} value={editor.texture}>{optionsWithExisting(textureOptions, [editor.texture]).map((texture) => <option key={texture} value={texture}>{texture}</option>)}</select></label>
                 <label>Colour<input defaultValue={editor.product?.details?.Colour || "Natural Black (1B)"} name="colour" /></label>
