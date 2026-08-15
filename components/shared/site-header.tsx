@@ -34,9 +34,9 @@ export function SiteHeader() {
         <Link className="naka-logo" href="/">NAKA Hair</Link>
         <nav aria-label="Main navigation" className="naka-main-nav">
           <Link href="/#shop">Shop</Link>
-          <Link href="/#everyday">Glam On A Budget</Link>
-          <Link href="/#signature">Signature</Link>
-          <Link href="/#luxe">Luxe</Link>
+          <Link href="/collections/everyday">Glam On A Budget</Link>
+          <Link href="/collections/signature">Signature</Link>
+          <Link href="/collections/luxe">Luxe</Link>
         </nav>
         <div className="naka-header-actions">
           {!loading && user ? (

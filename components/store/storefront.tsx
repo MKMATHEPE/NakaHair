@@ -1,17 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+import { collections } from "@/lib/client/collections";
 import type { Product } from "@/lib/client/types";
 
 import { ProductCard } from "./product-card";
 import { ProductDialog } from "./product-dialog";
-
-const collections = [
-  { key: "everyday", eyebrow: "Glam On A Budget", title: "Everyday confidence", copy: "Soft, reliable styles at prices that work for you." },
-  { key: "signature", eyebrow: "Signature Collection", title: "Our most-loved styles", copy: "A considered balance of quality, finish, and lasting value." },
-  { key: "luxe", eyebrow: "Luxe Collection", title: "The finest hair we carry", copy: "Top-grade virgin hair, handpicked for exceptional softness and longevity." },
-] as const;
 
 export function Storefront() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -88,7 +84,7 @@ export function Storefront() {
 
       {collections.map((collection) => {
         const collectionProducts = products.filter((product) => product.collection === collection.key).slice(0, 4);
-        return <section className={`naka-collection naka-collection-${collection.key}`} id={collection.key} key={collection.key}><div className="naka-collection-copy"><p className="naka-eyebrow">{collection.eyebrow}</p><h2>{collection.title}</h2><p>{collection.copy}</p></div><div className="naka-product-grid">{collectionProducts.map((product) => <ProductCard key={product.id} onSelect={setSelected} product={product} />)}</div></section>;
+        return <section className={`naka-collection naka-collection-${collection.key}`} id={collection.key} key={collection.key}><Link aria-label={`View ${collection.eyebrow}`} className="naka-collection-copy" href={`/collections/${collection.key}`}><p className="naka-eyebrow">{collection.eyebrow}</p><h2>{collection.title}</h2><p>{collection.copy}</p></Link><div className="naka-product-grid">{collectionProducts.map((product) => <ProductCard key={product.id} onSelect={setSelected} product={product} />)}</div></section>;
       })}
 
       <section className="naka-story" id="about"><p className="naka-eyebrow">Our promise</p><h2>Hair that feels like you.</h2><p>We curate dependable styles with clear product information, thoughtful service, and options for every budget.</p></section>
