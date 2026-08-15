@@ -44,7 +44,13 @@ export function SiteHeader() {
           ) : <button className="naka-link-button" onClick={() => setAuthMode("login")} type="button">Login</button>}
           {!user ? <button className="naka-link-button naka-hide-mobile" onClick={() => setAuthMode("register")} type="button">Register</button> : null}
           <Link className="naka-hide-mobile" href="/vendor/products">Vendor</Link>
-          <button aria-label={`Cart with ${count} items`} className="naka-cart-button" onClick={() => setCartOpen(true)} type="button">Bag <span>{count}</span></button>
+          <button aria-label={`Cart with ${count} items`} className="naka-cart-button" onClick={() => setCartOpen(true)} type="button">
+            <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+              <path d="M5.5 8.5h13l1 12h-15l1-12Z" />
+              <path d="M9 9V6.5a3 3 0 0 1 6 0V9" />
+            </svg>
+            <span>{count}</span>
+          </button>
         </div>
       </header>
       {authMode ? <AuthDialog mode={authMode} onClose={() => setAuthMode(null)} /> : null}
