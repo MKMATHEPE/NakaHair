@@ -40,7 +40,8 @@ export function Storefront() {
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return query ? products.filter((product) => [product.name, product.type, product.hairType, product.collection].some((value) => value.toLowerCase().includes(query))) : products;
+    const matches = query ? products.filter((product) => [product.name, product.type, product.hairType, product.collection].some((value) => value.toLowerCase().includes(query))) : products;
+    return matches.slice(0, 4);
   }, [products, search]);
 
   async function submitContact(event: FormEvent<HTMLFormElement>) {
