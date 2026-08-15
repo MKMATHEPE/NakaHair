@@ -42,7 +42,6 @@ export function SiteHeader() {
           {!loading && user ? (
             <Link href="/account/orders">Hi, {user.firstName || "there"}</Link>
           ) : <button className="naka-link-button" onClick={() => setAuthMode("login")} type="button">Login</button>}
-          {!user ? <button className="naka-link-button naka-hide-mobile" onClick={() => setAuthMode("register")} type="button">Register</button> : null}
           <button aria-label={`Cart with ${count} items`} className="naka-cart-button" onClick={() => setCartOpen(true)} type="button">
             <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
               <path d="M5.5 8.5h13l1 12h-15l1-12Z" />
