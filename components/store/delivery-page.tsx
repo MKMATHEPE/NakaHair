@@ -1,28 +1,20 @@
-"use client";
-
-import { useState, type FormEvent } from "react";
-
 export function DeliveryPage() {
-  const [trackingResult, setTrackingResult] = useState("");
-
-  async function trackOrder(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    setTrackingResult("Looking for your order…");
-    const response = await fetch("/api/orders/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(Object.fromEntries(data)),
-    });
-    const body = await response.json();
-    setTrackingResult(response.ok ? `${body.orderNumber} is currently ${body.status}.` : body.error || "Unable to track this order.");
-  }
-
   return (
-    <main>
-      <section className="naka-service-grid" id="shipping">
-        <article><p className="naka-eyebrow">Delivery</p><h2>Shipping information</h2><p>Choose standard or express delivery during checkout. We will email your order number once your order is confirmed.</p></article>
-        <article id="track"><p className="naka-eyebrow">Already ordered?</p><h2>Track your order</h2><form className="naka-form" onSubmit={trackOrder}><label>Order number<input maxLength={80} name="orderNumber" required /></label><label>Email used at checkout<input maxLength={320} name="email" required type="email" /></label><button className="naka-button" type="submit">Track Order</button></form>{trackingResult ? <p aria-live="polite" className="naka-notice">{trackingResult}</p> : null}</article>
+    <main className="naka-delivery-page">
+      <section className="naka-delivery-journey">
+        <p className="naka-eyebrow">Delivery guide</p>
+        <h1>From checkout to your door.</h1>
+        <p className="naka-delivery-intro">A simple overview of what happens after an order is placed.</p>
+        <div className="naka-delivery-steps">
+          <article><span>01</span><h3>Order confirmed</h3><p>We confirm your payment and delivery details.</p></article>
+          <article><span>02</span><h3>Prepared</h3><p>Orders placed before 2:30pm enter same-day preparation.</p></article>
+          <article><span>03</span><h3>On its way</h3><p>Your tracking details are sent by email after dispatch.</p></article>
+        </div>
+        <div className="naka-delivery-options">
+          <article><p className="naka-eyebrow">Standard · R150</p><h2>3–5 business days</h2><p>Reliable nationwide delivery.</p></article>
+          <article><p className="naka-eyebrow">Express · R250</p><h2>1–2 business days</h2><p>Available in selected areas.</p></article>
+        </div>
+        <div className="naka-delivery-cutoff"><span>Daily order cut-off</span><strong>2:30pm</strong></div>
       </section>
     </main>
   );
