@@ -426,13 +426,11 @@ export function VendorProductsPanel() {
                 <div className="naka-variant-editor-head" aria-hidden="true"><span /><span>Hair Origin *</span><span>Size *</span><span>Price (ZAR) *</span><span>Stock *</span><span /></div>
                 <div className="naka-variant-editor-list">{editor.variants.map((variant, index) => <div
                   className="naka-variant-editor-row"
-                  draggable
                   key={variant.id}
                   onDragOver={(event) => event.preventDefault()}
-                  onDragStart={(event) => event.dataTransfer.setData("text/plain", variant.id)}
                   onDrop={(event) => reorderVariant(event.dataTransfer.getData("text/plain"), variant.id)}
                 >
-                  <span aria-hidden="true" className="naka-variant-drag">⠿</span>
+                  <span aria-hidden="true" className="naka-variant-drag" draggable onDragStart={(event) => event.dataTransfer.setData("text/plain", variant.id)}>⠿</span>
                   <label data-label="Hair Origin"><span className="sr-only">Hair origin {index + 1}</span><select aria-label={`Hair origin ${index + 1}`} onChange={(event) => updateVariant(variant.id, "hairOrigin", event.target.value)} required value={variant.hairOrigin}><option disabled value="">Select origin</option>{optionsWithExisting(hairOriginOptions, editor.customOrigins).map((origin) => <option key={origin} value={origin}>{origin}</option>)}</select></label>
                   <label data-label="Size"><span className="sr-only">Size {index + 1}</span><select aria-label={`Size ${index + 1}`} onChange={(event) => updateVariant(variant.id, "size", event.target.value)} required value={variant.size}><option disabled value="">Select size</option>{sizeOptions.map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
                   <label data-label="Price (ZAR)"><span className="sr-only">Price {index + 1}</span><span className="naka-money-input"><b>R</b><input aria-label={`Price ${index + 1}`} min={0} onChange={(event) => updateVariant(variant.id, "price", event.target.value)} required step="0.01" type="number" value={variant.price} /></span></label>
