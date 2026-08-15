@@ -267,7 +267,7 @@ export function VendorProductsPanel() {
                 <label>Old price<input defaultValue={editor.product?.old_price || ""} min={0} name="oldPrice" step="0.01" type="number" /></label>
                 <label>Stock<input defaultValue={editor.product?.stock_quantity || 0} min={0} name="stockQuantity" required type="number" /></label>
                 <label>Visibility<select defaultValue={editor.product?.status || "draft"} name="status"><option value="draft">Draft</option><option value="active">Active in Store</option></select></label>
-                <OptionSelector legend="Hair origins" onToggle={(value) => toggleOption("origins", value)} options={hairOriginOptions} selected={editor.origins} />
+                <OptionSelector compact legend="Hair origins" onToggle={(value) => toggleOption("origins", value)} options={hairOriginOptions} selected={editor.origins} />
                 <OptionSelector compact legend="Sizes" onToggle={(value) => toggleOption("sizes", value)} options={sizeOptions} selected={editor.sizes} />
                 <label>Texture<select onChange={(event) => setEditor((current) => current ? { ...current, texture: event.target.value } : current)} value={editor.texture}>{optionsWithExisting(textureOptions, [editor.texture]).map((texture) => <option key={texture} value={texture}>{texture}</option>)}</select></label>
                 <label>Colour<input defaultValue={editor.product?.details?.Colour || "Natural Black (1B)"} name="colour" /></label>
