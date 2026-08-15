@@ -21,7 +21,7 @@ const toPublicProduct = (row, collectionCoverImage = "") => {
     type: row.product_type,
     price: money(row.price),
     oldPrice: row.old_price == null ? null : money(row.old_price),
-    tag: row.tag || "Vendor",
+    tag: row.tag || "",
     rating: Number(row.rating || 0),
     reviewCount: Number(row.review_count || 0),
     shortDesc: row.short_description || "",
