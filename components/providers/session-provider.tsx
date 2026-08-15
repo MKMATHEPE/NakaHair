@@ -24,7 +24,7 @@ type SessionContextValue = {
   portal: Portal;
   user: SessionUser | null;
   accessToken(): Promise<string>;
-  login(credentials: Credentials): Promise<void>;
+  login(credentials: Credentials, targetPortal?: Portal): Promise<void>;
   logout(): Promise<void>;
   register(details: Registration): Promise<string>;
   refresh(): Promise<void>;
@@ -94,18 +94,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [client, clients.customer, clients.vendor, portal]);
 
-  const login = useCallback(async ({ email, password }: Credentials) => {
-    const inactive = portal === "vendor" ? clients.customer : clients.vendor;
+  const login = useCallback(async ({ email, password }: Credentials, targetPortal: Portal = portal) => {
+    const selectedClient = clients[targetPortal];
+    const inactive = targetPortal === "vendor" ? clients.customer : clients.vendor;
     await inactive.auth.signOut({ scope: "local" });
-    const { error } = await client.auth.signInWithPassword({ email, password });
+    const { error } = await selectedClient.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    const nextUser = await resolveUser(client);
-    if (portal === "vendor" && !nextUser?.isVendor) {
-      await client.auth.signOut({ scope: "local" });
+    const nextUser = await resolveUser(selectedClient);
+    if (targetPortal === "vendor" && !nextUser?.isVendor) {
+      await selectedClient.auth.signOut({ scope: "local" });
       throw new Error("No approved vendor profile was found for this account.");
     }
-    setUser(nextUser);
-  }, [client, clients.customer, clients.vendor, portal]);
+    if (targetPortal === portal) {
+      setUser(nextUser);
+      return;
+    }
+    setUser(null);
+    router.replace(targetPortal === "vendor" ? "/vendor/products" : "/account/orders");
+  }, [clients, portal, router]);
 
   const register = useCallback(async (details: Registration) => {
     const { data, error } = await client.auth.signUp({
