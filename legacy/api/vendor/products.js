@@ -82,33 +82,33 @@ const normalizeVariantPrices = (value, hairOrigins, sizes) => {
   if (!Array.isArray(value) || value.length > 400) {
     throw new Error("Combination prices are invalid.");
   }
-  const expected = expectedVariantOptions(hairOrigins, sizes);
-  if (value.length !== expected.length) {
-    throw new Error("Set a price for every selected hair origin and size combination.");
-  }
-  const received = new Map();
-  for (const entry of value) {
+  const originSet = new Set(hairOrigins);
+  const sizeSet = new Set(sizes);
+  const received = new Set();
+  return value.map((entry) => {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
       throw new Error("Combination prices are invalid.");
     }
     const hairOrigin = String(entry.hairOrigin || "").trim();
     const size = String(entry.size || "").trim();
     const price = Number(entry.price);
+    const stock = entry.stock === undefined ? undefined : Number(entry.stock);
     const key = variantKey(hairOrigin, size);
-    if (received.has(key) || !Number.isFinite(price) || price < 0 || price > 9999999999.99) {
+    if (received.has(key)
+      || (hairOrigin && !originSet.has(hairOrigin))
+      || (size && !sizeSet.has(size))
+      || !Number.isFinite(price)
+      || price < 0
+      || price > 9999999999.99
+      || (stock !== undefined && (!Number.isInteger(stock) || stock < 0 || stock > 999999999))) {
       throw new Error("Combination prices are invalid.");
     }
-    received.set(key, Math.round(price * 100) / 100);
-  }
-  return expected.map(({ hairOrigin, size }) => {
-    const key = variantKey(hairOrigin, size);
-    if (!received.has(key)) {
-      throw new Error("Set a price for every selected hair origin and size combination.");
-    }
+    received.add(key);
     return {
       hairOrigin: hairOrigin || null,
       size: size || null,
-      price: received.get(key),
+      price: Math.round(price * 100) / 100,
+      ...(stock === undefined ? {} : { stock }),
     };
   });
 };

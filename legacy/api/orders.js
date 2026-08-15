@@ -124,6 +124,14 @@ module.exports = async function handler(request, response) {
         if ((origins.length && !origins.includes(selectedOrigin)) || (!origins.length && selectedOrigin)) {
           return json(response, 409, { error: `Select a valid hair origin for ${product.name}.` });
         }
+        const selectedVariant = Array.isArray(product.variant_prices)
+          ? product.variant_prices.find((variant) =>
+            String(variant?.hairOrigin || "") === selectedOrigin
+            && String(variant?.size || "") === selectedSize)
+          : null;
+        if (selectedVariant && selectedVariant.stock !== undefined && Number(selectedVariant.stock) < quantity) {
+          return json(response, 409, { error: `${product.name} does not have enough stock for that option.` });
+        }
         const variantPrice = calculateVariantPrice(product, selectedOrigin, selectedSize);
         normalizedItems.push({
           ...safeItems([{ ...item, name: product.name, price: variantPrice, quantity }])[0],

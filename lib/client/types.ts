@@ -15,6 +15,7 @@ export type ProductVariantPrice = {
   hairOrigin: string | null;
   size: string | null;
   price: number;
+  stock?: number;
 };
 
 export type Product = {
