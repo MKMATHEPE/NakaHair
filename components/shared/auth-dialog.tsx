@@ -114,7 +114,7 @@ export function AuthDialog({ mode, onClose }: { mode: "login" | "register"; onCl
             {error ? <p className="naka-error">{error}</p> : null}
             <button className="naka-button" disabled={busy} type="submit">{busy ? "Please wait…" : activeMode === "login" ? "Sign In" : "Create Account"}</button>
             <div className="naka-auth-links">
-              {activeMode === "login" ? <><button onClick={() => setSelectedPortal((current) => current === "customer" ? "vendor" : "customer")} type="button">{selectedPortal === "customer" ? "Manage a store instead" : "Shop as a customer instead"}</button><span aria-hidden="true">·</span><button onClick={() => changeMode("register")} type="button">Create account</button><span aria-hidden="true">·</span><button disabled={busy} onClick={() => void resetPassword()} type="button">Forgot password?</button></> : <button onClick={() => changeMode("login")} type="button">Already have an account? Sign in</button>}
+              {activeMode === "login" ? <><button onClick={() => changeMode("register")} type="button">Create account</button><span aria-hidden="true">·</span><button disabled={busy} onClick={() => void resetPassword()} type="button">Forgot password?</button></> : <button onClick={() => changeMode("login")} type="button">Already have an account? Sign in</button>}
             </div>
           </form>
         )}
