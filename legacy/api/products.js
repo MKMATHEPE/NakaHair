@@ -1,4 +1,3 @@
-const seedProducts = require("../../server/seed-products.json");
 const { json, supabaseRest } = require("../../lib/supabase-server");
 const { catalogueSort, publicationIssue } = require("../../lib/vendor-product-rules");
 
@@ -76,7 +75,7 @@ module.exports = async function handler(request, response) {
     const vendorProducts = (await result.json())
       .filter((product) => !publicationIssue(product))
       .map((product) => toPublicProduct(product, coverImages.get(Number(product.id)) || ""));
-    return json(response, 200, [...seedProducts, ...vendorProducts].sort(catalogueSort));
+    return json(response, 200, vendorProducts.sort(catalogueSort));
   } catch (error) {
     console.error("Product catalogue failed:", error);
     return json(response, 502, { error: "The product catalogue is temporarily unavailable." });
