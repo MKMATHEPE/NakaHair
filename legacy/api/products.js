@@ -7,7 +7,7 @@ const money = (value) => `R${Number(value).toLocaleString("en-ZA", {
   maximumFractionDigits: 2,
 })}`;
 
-const toPublicProduct = (row) => {
+const toPublicProduct = (row, collectionCoverImage = "") => {
   const images = Array.isArray(row.image_urls) && row.image_urls.length
     ? row.image_urls
     : row.image_url ? [row.image_url] : [];
@@ -37,6 +37,7 @@ const toPublicProduct = (row) => {
     stockQuantity: row.stock_quantity,
     isFeatured: Boolean(row.is_featured),
     displayOrder: Number(row.display_order || 0),
+    collectionCoverImage,
   };
 };
 
@@ -51,17 +52,30 @@ module.exports = async function handler(request, response) {
   }
 
   try {
-    const result = await supabaseRest(
-      "vendor_products?select=*&status=eq.active&stock_quantity=gt.0&order=is_featured.desc,display_order.asc,created_at.desc",
-    );
+    const [result, coversResult] = await Promise.all([
+      supabaseRest(
+        "vendor_products?select=*&status=eq.active&stock_quantity=gt.0&order=is_featured.desc,display_order.asc,created_at.desc",
+      ),
+      supabaseRest("vendor_collection_covers?select=cover_product_id,cover_image_url"),
+    ]);
     if (!result.ok) {
       const errorBody = await result.text();
       console.error("Unable to load vendor products:", result.status, errorBody);
       return json(response, 502, { error: "The product catalogue is temporarily unavailable." });
     }
+    let collectionCovers = [];
+    if (coversResult.ok) {
+      collectionCovers = await coversResult.json();
+    } else {
+      console.error("Unable to load collection covers:", coversResult.status, await coversResult.text());
+    }
+    const coverImages = new Map(collectionCovers.map((cover) => [
+      Number(cover.cover_product_id),
+      String(cover.cover_image_url || ""),
+    ]));
     const vendorProducts = (await result.json())
       .filter((product) => !publicationIssue(product))
-      .map(toPublicProduct);
+      .map((product) => toPublicProduct(product, coverImages.get(Number(product.id)) || ""));
     return json(response, 200, [...seedProducts, ...vendorProducts].sort(catalogueSort));
   } catch (error) {
     console.error("Product catalogue failed:", error);

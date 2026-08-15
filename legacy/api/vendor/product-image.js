@@ -61,6 +61,16 @@ module.exports = async function handler(request, response) {
       const imageUrl = String(request.body?.imageUrl || "");
       if (!currentImages.includes(imageUrl)) return json(response, 404, { error: "Image not found." });
       const nextImages = currentImages.filter((item) => item !== imageUrl);
+      const coverResult = await supabaseRest(
+        `vendor_collection_covers?vendor_user_id=eq.${userId}&cover_product_id=eq.${id}&cover_image_url=eq.${encodeURIComponent(imageUrl)}`,
+        nextImages.length
+          ? {
+            method: "PATCH",
+            body: JSON.stringify({ cover_image_url: nextImages[0], updated_at: new Date().toISOString() }),
+          }
+          : { method: "DELETE" },
+      );
+      if (!coverResult.ok) return json(response, 502, { error: "Unable to update the collection cover." });
       const updateResult = await supabaseRest(
         `vendor_products?id=eq.${id}&vendor_user_id=eq.${userId}`,
         {

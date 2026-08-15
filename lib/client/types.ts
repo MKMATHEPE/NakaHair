@@ -44,6 +44,7 @@ export type Product = {
   stockQuantity?: number;
   isFeatured?: boolean;
   displayOrder?: number;
+  collectionCoverImage?: string;
 };
 
 export type CartItem = {

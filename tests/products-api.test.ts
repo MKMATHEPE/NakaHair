@@ -10,7 +10,8 @@ describe("public products API", () => {
   it("loads active vendor products with a modern Supabase secret key", async () => {
     vi.stubEnv("SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("SUPABASE_SECRET_KEY", "sb_secret_test");
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json([{
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(Response.json([{
       id: 7,
       collection: "signature",
       hair_type: "Curly",
@@ -34,7 +35,11 @@ describe("public products API", () => {
       stock_quantity: 5,
       is_featured: true,
       display_order: 1,
-    }])));
+      }]))
+      .mockResolvedValueOnce(Response.json([{
+        cover_product_id: 7,
+        cover_image_url: "https://example.test/collection-cover.jpg",
+      }])));
 
     const { default: handler } = await import("../legacy/api/products.js");
     const response = {
@@ -62,6 +67,7 @@ describe("public products API", () => {
       source: "vendor",
       name: "Vendor Curls",
       collection: "signature",
+      collectionCoverImage: "https://example.test/collection-cover.jpg",
     }));
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("vendor_products?"),

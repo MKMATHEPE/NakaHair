@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { useSession } from "@/components/providers/session-provider";
 import { collectionLabel, vendorCollectionTabs, type CollectionKey, type VendorCollectionTab } from "@/lib/client/collections";
@@ -33,6 +33,17 @@ type ProductPreviewState = {
   oldPrice: string;
   productType: string;
   shortDescription: string;
+};
+
+type CollectionCover = {
+  collection: CollectionKey;
+  cover_product_id: number;
+  cover_image_url: string;
+};
+
+type CoverSelection = {
+  imageUrl: string;
+  productId: number;
 };
 
 const hairOriginOptions = [
@@ -157,6 +168,10 @@ export function VendorProductsPanel() {
   const [busy, setBusy] = useState(false);
   const [customOrigin, setCustomOrigin] = useState("");
   const [customOriginError, setCustomOriginError] = useState("");
+  const [collectionCovers, setCollectionCovers] = useState<CollectionCover[]>([]);
+  const [coverEditorOpen, setCoverEditorOpen] = useState(false);
+  const [coverSelection, setCoverSelection] = useState<CoverSelection | null>(null);
+  const [coverSaving, setCoverSaving] = useState(false);
   const [pendingAction, setPendingAction] = useState<number | null>(null);
   const [preview, setPreview] = useState<ProductPreviewState>(() => previewFor(null));
   const [selectedTab, setSelectedTab] = useState<VendorCollectionTab>("catalogue");
@@ -172,11 +187,72 @@ export function VendorProductsPanel() {
     .sort(displayOrderSort), [products, selectedTab]);
 
   const featuredCount = products.filter((product) => product.is_featured).length;
+  const selectedCollectionCover = selectedTab === "catalogue"
+    ? null
+    : collectionCovers.find((cover) => cover.collection === selectedTab) || null;
+  const selectedCoverProduct = selectedCollectionCover
+    ? products.find((product) => product.id === selectedCollectionCover.cover_product_id) || null
+    : null;
+  const eligibleCoverProducts = selectedTab === "catalogue" ? [] : products.filter((product) =>
+    product.collection === selectedTab
+    && product.status === "active"
+    && product.stock_quantity > 0
+    && Boolean(product.image_urls?.some(Boolean) || product.image_url));
   const editorPrices = editor?.variants.map((variant) => Number(variant.price)).filter(Number.isFinite) || [];
   const editorPrice = editorPrices.length ? Math.min(...editorPrices) : 0;
   const editorStock = editor
     ? editor.variants.reduce((sum, variant) => sum + (Number.isInteger(Number(variant.stock)) ? Number(variant.stock) : 0), 0)
     : 0;
+
+  const loadCollectionCovers = useCallback(async () => {
+    const token = await accessToken();
+    const response = await fetch("/api/vendor/collection-cover", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Unable to load collection covers.");
+    setCollectionCovers(body);
+  }, [accessToken]);
+
+  useEffect(() => {
+    void loadCollectionCovers().catch((reason) => setError(reason.message));
+  }, [loadCollectionCovers, setError]);
+
+  useEffect(() => {
+    setCoverEditorOpen(false);
+    setCoverSelection(null);
+  }, [selectedTab]);
+
+  async function saveCollectionCover() {
+    if (selectedTab === "catalogue" || !coverSelection) return;
+    setCoverSaving(true);
+    setError("");
+    try {
+      const token = await accessToken();
+      const response = await fetch("/api/vendor/collection-cover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          collection: selectedTab,
+          productId: coverSelection.productId,
+          imageUrl: coverSelection.imageUrl,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Unable to save the collection cover.");
+      setCollectionCovers((current) => [
+        ...current.filter((cover) => cover.collection !== body.collection),
+        body,
+      ]);
+      setCoverEditorOpen(false);
+      setCoverSelection(null);
+      setSavedMessage("Collection cover updated");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to save the collection cover.");
+    } finally {
+      setCoverSaving(false);
+    }
+  }
 
   function openEditor(product: VendorProduct | null) {
     if (!product && selectedTab === "catalogue") return;
@@ -427,6 +503,31 @@ export function VendorProductsPanel() {
           type="button"
         ><span>{tab.label}</span><small>{counts[tab.key] || 0}</small></button>)}
       </nav>
+      {selectedTab !== "catalogue" && !editor ? <section className="naka-collection-cover-management">
+        <div className="naka-collection-cover-current">
+          <div className="naka-collection-cover-image"><ProductImage alt={`${collectionLabel(selectedTab)} collection cover`} src={selectedCollectionCover?.cover_image_url} /></div>
+          <div><p className="naka-eyebrow">Collection cover</p><h3>Customer collection card</h3><p>{selectedCollectionCover ? "This is your selected image for the customer collection card." : "Choose your image for this customer collection card."}</p>{selectedCoverProduct ? <small>From {selectedCoverProduct.name}</small> : null}</div>
+          <button className="naka-button-secondary" disabled={!eligibleCoverProducts.length} onClick={() => {
+            setCoverSelection(selectedCollectionCover ? { imageUrl: selectedCollectionCover.cover_image_url, productId: selectedCollectionCover.cover_product_id } : null);
+            setCoverEditorOpen((open) => !open);
+          }} type="button">{selectedCollectionCover ? "Change Cover" : "Choose Cover"}</button>
+        </div>
+        {coverEditorOpen ? <div className="naka-collection-cover-picker">
+          <div className="naka-collection-cover-picker-heading"><div><h3>Choose a product image</h3><p>Only active products with stock in {collectionLabel(selectedTab)} are available.</p></div><button aria-label="Close collection cover picker" className="naka-link-button" onClick={() => { setCoverEditorOpen(false); setCoverSelection(null); }} type="button">Close</button></div>
+          <div className="naka-collection-cover-options">{eligibleCoverProducts.flatMap((product) => {
+            const images = product.image_urls?.filter(Boolean).length ? product.image_urls.filter(Boolean) : product.image_url ? [product.image_url] : [];
+            return images.map((imageUrl, index) => <button
+              aria-label={`Use image ${index + 1} from ${product.name} as the collection cover`}
+              aria-pressed={coverSelection?.productId === product.id && coverSelection.imageUrl === imageUrl}
+              className={coverSelection?.productId === product.id && coverSelection.imageUrl === imageUrl ? "active" : ""}
+              key={`${product.id}-${imageUrl}`}
+              onClick={() => setCoverSelection({ imageUrl, productId: product.id })}
+              type="button"
+            ><span className="naka-collection-cover-option-image"><ProductImage alt={`${product.name} image ${index + 1}`} src={imageUrl} /></span><strong>{product.name}</strong><small>Image {index + 1}{selectedCollectionCover?.cover_product_id === product.id && selectedCollectionCover.cover_image_url === imageUrl ? " · Current cover" : ""}</small></button>);
+          })}</div>
+          <div className="naka-collection-cover-picker-actions"><p>{coverSelection ? "Selected image previewed above." : "Select one image to continue."}</p><button className="naka-button" disabled={!coverSelection || coverSaving} onClick={() => void saveCollectionCover()} type="button">{coverSaving ? "Saving…" : "Save Collection Cover"}</button></div>
+        </div> : null}
+      </section> : null}
       {error ? <p className="naka-error">{error}</p> : null}
       {editor ? <section className="naka-product-editor-page">
         <p className="naka-editor-collection-context">{editor.product ? "Editing in" : "Adding a product to"} <strong>{collectionLabel(editor.collection)}</strong></p>
@@ -522,7 +623,7 @@ export function VendorProductsPanel() {
               const actionPending = pendingAction === product.id;
               const featureBlocked = product.status !== "active" || Boolean(issue) || (!product.is_featured && featuredCount >= MAX_FEATURED_PRODUCTS);
               return <tr key={product.id}>
-                <td data-label="Product"><div className="naka-product-cell"><div className="naka-table-image"><ProductImage alt={product.name} src={product.image_urls?.[0] || product.image_url} /></div><div><strong>{product.name}</strong><small>{collectionLabel(product.collection)}</small>{issue ? <em>{issue}</em> : null}</div></div></td>
+                <td data-label="Product"><div className="naka-product-cell"><div className="naka-table-image"><ProductImage alt={product.name} src={product.image_urls?.[0] || product.image_url} /></div><div><strong>{product.name}</strong><small>{collectionLabel(product.collection)}</small>{collectionCovers.some((cover) => cover.cover_product_id === product.id) ? <span className="naka-cover-badge">Collection cover</span> : null}{issue ? <em>{issue}</em> : null}</div></div></td>
                 <td data-label="Price">{formatMoney(Number(product.price))}</td>
                 <td data-label="Stock">{product.stock_quantity}</td>
                 <td data-label="Show in store"><button aria-checked={product.status === "active"} aria-label={`${product.status === "active" ? "Hide" : "Show"} ${product.name} in store`} className={`naka-switch${product.status === "active" ? " active" : ""}`} disabled={actionPending || (product.status !== "active" && Boolean(issue))} onClick={() => void updateProduct(product, { status: product.status === "active" ? "draft" : "active" })} role="switch" type="button"><span aria-hidden="true" /><small>{product.status === "active" ? "Shown" : "Hidden"}</small></button></td>

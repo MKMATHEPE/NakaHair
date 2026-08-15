@@ -60,9 +60,11 @@ export function Storefront() {
         <div className="naka-collection-showcase-heading"><p className="naka-eyebrow">Shop by collection</p><span aria-hidden="true" /></div>
         <div className="naka-collection-card-grid">
           {collections.map((collection) => {
-            const featuredProduct = products.find((product) => product.collection === collection.key);
+            const collectionProducts = products.filter((product) => product.collection === collection.key);
+            const featuredProduct = collectionProducts.find((product) => product.collectionCoverImage) || collectionProducts[0];
+            const coverImage = featuredProduct?.collectionCoverImage || (featuredProduct ? productImage(featuredProduct) : undefined);
             return <Link aria-label={`View ${collection.eyebrow}`} className={`naka-collection-card naka-collection-card-${collection.key}`} href={`/collections/${collection.key}`} id={collection.key} key={collection.key}>
-              <div className="naka-collection-card-image"><ProductImage alt={featuredProduct?.name || collection.eyebrow} src={featuredProduct ? productImage(featuredProduct) : undefined} /></div>
+              <div className="naka-collection-card-image"><ProductImage alt={featuredProduct?.name || collection.eyebrow} src={coverImage} /></div>
               <div className="naka-collection-card-copy"><p className="naka-eyebrow">{collection.eyebrow}</p><h2>{collection.title}</h2><p>{collection.copy}</p><span>View collection →</span></div>
             </Link>;
           })}
