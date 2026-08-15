@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { collections } from "@/lib/client/collections";
 import type { Product } from "@/lib/client/types";
@@ -17,7 +17,6 @@ export function Storefront() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState("");
-  const [trackingResult, setTrackingResult] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -41,33 +40,6 @@ export function Storefront() {
     const matches = query ? products.filter((product) => [product.name, product.type, product.hairType, product.collection].some((value) => value.toLowerCase().includes(query))) : products;
     return matches.slice(0, 4);
   }, [products, search]);
-
-  async function submitContact(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const response = await fetch("/api/contact", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(Object.fromEntries(data)),
-    });
-    const body = await response.json();
-    setNotice(body.message || body.error);
-    if (response.ok) form.reset();
-  }
-
-  async function trackOrder(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    setTrackingResult("Looking for your order…");
-    const response = await fetch("/api/orders/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(Object.fromEntries(data)),
-    });
-    const body = await response.json();
-    setTrackingResult(response.ok ? `${body.orderNumber} is currently ${body.status}.` : body.error || "Unable to track this order.");
-  }
 
   return (
     <main>
@@ -97,12 +69,6 @@ export function Storefront() {
         </div>
       </section>
 
-      <section className="naka-story" id="about"><p className="naka-eyebrow">Our promise</p><h2>Hair that feels like you.</h2><p>We curate dependable styles with clear product information, thoughtful service, and options for every budget.</p></section>
-      <section className="naka-service-grid" id="shipping">
-        <article><p className="naka-eyebrow">Delivery</p><h2>Shipping information</h2><p>Choose standard or express delivery during checkout. We will email your order number once your order is confirmed.</p></article>
-        <article id="track"><p className="naka-eyebrow">Already ordered?</p><h2>Track your order</h2><form className="naka-form" onSubmit={trackOrder}><label>Order number<input maxLength={80} name="orderNumber" required /></label><label>Email used at checkout<input maxLength={320} name="email" required type="email" /></label><button className="naka-button" type="submit">Track Order</button></form>{trackingResult ? <p aria-live="polite" className="naka-notice">{trackingResult}</p> : null}</article>
-      </section>
-      <section className="naka-contact" id="contact"><div><p className="naka-eyebrow">Need help?</p><h2>Contact Us</h2><p>Send us a message and our support team will get back to you.</p></div><form className="naka-form" onSubmit={submitContact}><label>Name<input maxLength={160} name="name" required /></label><label>Email<input maxLength={320} name="email" required type="email" /></label><label>Message<textarea maxLength={3000} name="message" required rows={5} /></label><button className="naka-button" type="submit">Send Message</button></form></section>
       {selected ? <ProductDialog onClose={() => setSelected(null)} product={selected} /> : null}
     </main>
   );
