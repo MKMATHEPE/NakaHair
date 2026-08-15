@@ -19,7 +19,7 @@ export function VendorShell({ children }: { children: ReactNode }) {
   const { loading, user } = useSession();
   if (loading) return <main className="naka-dashboard-loading">Loading vendor portal…</main>;
   if (!user) return <main className="naka-access"><p className="naka-eyebrow">Vendor portal</p><h1>Vendor login required</h1><p>Use Vendor Login in the header to open your management dashboard.</p></main>;
-  if (!user.isVendor) return <main className="naka-access"><p className="naka-eyebrow">Vendor portal</p><h1>No approved vendor profile</h1><p>Submit your application from your customer account before signing in here.</p><Link className="naka-button" href="/account/vendor">Open Application</Link></main>;
+  if (!user.isVendor) return <main className="naka-access"><p className="naka-eyebrow">Vendor portal</p><h1>Vendor access required</h1><p>This store has one approved vendor account.</p></main>;
 
   return <main className="naka-vendor-layout"><div className="naka-vendor-intro"><p className="naka-eyebrow">Vendor management</p><h1>{user.vendorBusinessName || "Vendor Dashboard"}</h1></div><nav className="naka-tabs">{links.map(([href, label]) => <Link className={pathname === href ? "active" : ""} href={href} key={href}>{label}</Link>)}</nav><section className="naka-vendor-content">{children}</section></main>;
 }
