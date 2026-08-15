@@ -25,7 +25,7 @@ export function AccountShell({ children }: { children: ReactNode }) {
       <aside className="naka-account-sidebar">
         <p className="naka-eyebrow">My account</p>
         <h1>{user.firstName || "Welcome"}</h1>
-        <nav>{links.map(([href, label]) => <Link className={pathname === href ? "active" : ""} href={href} key={href}>{label}</Link>)}{user.isVendor ? <Link href="/vendor/products">Vendor Portal</Link> : null}<button className="naka-link-button" onClick={() => void logout()} type="button">Log out</button></nav>
+        <nav>{links.map(([href, label]) => <Link className={pathname === href ? "active" : ""} href={href} key={href}>{label}</Link>)}<button className="naka-link-button" onClick={() => void logout()} type="button">Log out</button></nav>
       </aside>
       <section className="naka-account-content">{children}</section>
     </main>
