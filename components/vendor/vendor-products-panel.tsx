@@ -80,7 +80,19 @@ function OptionDropdown({
   const dropdown = useRef<HTMLDetailsElement>(null);
 
   return <>
-    <select aria-label={ariaLabel} className="naka-option-native" onChange={(event) => onChange(event.target.value)} value={value}>
+    <select
+      aria-label={ariaLabel}
+      className="naka-option-native"
+      onChange={(event) => {
+        event.stopPropagation();
+        onChange(event.currentTarget.value);
+      }}
+      onInput={(event) => {
+        event.stopPropagation();
+        onChange(event.currentTarget.value);
+      }}
+      value={value}
+    >
       <option disabled value="">{placeholder}</option>
       {options.map((option) => <option key={option} value={option}>{option}</option>)}
     </select>
