@@ -79,28 +79,34 @@ function OptionDropdown({
 }) {
   const dropdown = useRef<HTMLDetailsElement>(null);
 
-  return <details
-    className="naka-option-dropdown"
-    onBlur={(event) => {
-      if (!event.currentTarget.contains(event.relatedTarget)) dropdown.current?.removeAttribute("open");
-    }}
-    ref={dropdown}
-  >
-    <summary aria-label={ariaLabel} aria-haspopup="listbox"><span>{value || placeholder}</span><span aria-hidden="true">⌄</span></summary>
-    <div aria-label={`${ariaLabel} options`} className="naka-option-dropdown-menu" role="listbox">
-      {options.map((option) => <button
-        aria-selected={value === option}
-        className={value === option ? "active" : ""}
-        key={option}
-        onClick={() => {
-          onChange(option);
-          dropdown.current?.removeAttribute("open");
-        }}
-        role="option"
-        type="button"
-      >{option}</button>)}
-    </div>
-  </details>;
+  return <>
+    <select aria-label={ariaLabel} className="naka-option-native" onChange={(event) => onChange(event.target.value)} value={value}>
+      <option disabled value="">{placeholder}</option>
+      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+    </select>
+    <details
+      className="naka-option-dropdown"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) dropdown.current?.removeAttribute("open");
+      }}
+      ref={dropdown}
+    >
+      <summary aria-label={ariaLabel} aria-haspopup="listbox"><span>{value || placeholder}</span><span aria-hidden="true">⌄</span></summary>
+      <div aria-label={`${ariaLabel} options`} className="naka-option-dropdown-menu" role="listbox">
+        {options.map((option) => <button
+          aria-selected={value === option}
+          className={value === option ? "active" : ""}
+          key={option}
+          onClick={() => {
+            onChange(option);
+            dropdown.current?.removeAttribute("open");
+          }}
+          role="option"
+          type="button"
+        >{option}</button>)}
+      </div>
+    </details>
+  </>;
 }
 
 function stateFor(product: VendorProduct | null, collection: CollectionKey = "everyday"): EditorState {
