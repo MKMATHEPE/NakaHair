@@ -41,6 +41,8 @@ export type Product = {
   variantPrices?: ProductVariantPrice[];
   details: Record<string, string>;
   stockQuantity?: number;
+  isFeatured?: boolean;
+  displayOrder?: number;
 };
 
 export type CartItem = {
@@ -68,6 +70,8 @@ export type VendorProduct = {
   description: string | null;
   stock_quantity: number;
   status: "draft" | "active";
+  is_featured: boolean;
+  display_order: number;
   image_url: string | null;
   image_urls: string[] | null;
   sizes: string[];

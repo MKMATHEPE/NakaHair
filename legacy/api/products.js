@@ -1,5 +1,6 @@
 const seedProducts = require("../../server/seed-products.json");
 const { json, supabaseRest } = require("../../lib/supabase-server");
+const { catalogueSort, publicationIssue } = require("../../lib/vendor-product-rules");
 
 const money = (value) => `R${Number(value).toLocaleString("en-ZA", {
   minimumFractionDigits: Number(value) % 1 ? 2 : 0,
@@ -34,6 +35,8 @@ const toPublicProduct = (row) => {
     variantPrices: row.variant_prices || [],
     details: row.details || {},
     stockQuantity: row.stock_quantity,
+    isFeatured: Boolean(row.is_featured),
+    displayOrder: Number(row.display_order || 0),
   };
 };
 
@@ -49,15 +52,17 @@ module.exports = async function handler(request, response) {
 
   try {
     const result = await supabaseRest(
-      "vendor_products?select=*&status=eq.active&stock_quantity=gt.0&order=created_at.desc",
+      "vendor_products?select=*&status=eq.active&stock_quantity=gt.0&order=is_featured.desc,display_order.asc,created_at.desc",
     );
     if (!result.ok) {
       const errorBody = await result.text();
       console.error("Unable to load vendor products:", result.status, errorBody);
       return json(response, 200, seedProducts);
     }
-    const vendorProducts = (await result.json()).map(toPublicProduct);
-    return json(response, 200, [...seedProducts, ...vendorProducts]);
+    const vendorProducts = (await result.json())
+      .filter((product) => !publicationIssue(product))
+      .map(toPublicProduct);
+    return json(response, 200, [...seedProducts, ...vendorProducts].sort(catalogueSort));
   } catch (error) {
     console.error("Product catalogue failed:", error);
     return json(response, 200, seedProducts);

@@ -66,7 +66,12 @@ module.exports = async function handler(request, response) {
         {
           method: "PATCH",
           headers: { Prefer: "return=representation" },
-          body: JSON.stringify({ image_urls: nextImages, image_url: nextImages[0] || null, updated_at: new Date().toISOString() }),
+          body: JSON.stringify({
+            image_urls: nextImages,
+            image_url: nextImages[0] || null,
+            ...(nextImages.length ? {} : { status: "draft", is_featured: false }),
+            updated_at: new Date().toISOString(),
+          }),
         },
       );
       if (!updateResult.ok) return json(response, 502, { error: "Unable to remove the product image." });

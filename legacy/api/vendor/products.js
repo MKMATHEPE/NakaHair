@@ -5,6 +5,10 @@ const {
   serviceHeaders,
   supabaseRest,
 } = require("../../../lib/supabase-server");
+const {
+  MAX_FEATURED_PRODUCTS,
+  publicationIssue,
+} = require("../../../lib/vendor-product-rules");
 
 const allowedCollections = ["everyday", "signature", "luxe"];
 
@@ -161,6 +165,24 @@ const normalizeProduct = (body, partial = false) => {
     product.status = status;
   }
 
+  if (!partial || source.isFeatured !== undefined) {
+    if (!partial && source.isFeatured === undefined) {
+      product.isFeatured = false;
+    } else if (typeof source.isFeatured !== "boolean") {
+      throw new Error("Featured status is invalid.");
+    } else {
+      product.isFeatured = source.isFeatured;
+    }
+  }
+
+  if (!partial || source.displayOrder !== undefined) {
+    const displayOrder = Number(source.displayOrder ?? 0);
+    if (!Number.isInteger(displayOrder) || displayOrder < 0) {
+      throw new Error("Product display order is invalid.");
+    }
+    product.displayOrder = displayOrder;
+  }
+
   if (!partial || source.sizes !== undefined) {
     product.sizes = normalizeStringArray(source.sizes || [], "Sizes");
   }
@@ -226,14 +248,44 @@ const toRow = (product) => {
     hairOriginPrices: "hair_origin_prices",
     variantPrices: "variant_prices",
     details: "details",
+    isFeatured: "is_featured",
+    displayOrder: "display_order",
   };
   for (const [source, target] of Object.entries(mappings)) {
-    if (product[source] !== undefined) row[target] = product[source] || null;
+    if (product[source] !== undefined) row[target] = product[source] ?? null;
   }
   if (product.price !== undefined) row.price = product.price;
   if (product.stockQuantity !== undefined) row.stock_quantity = product.stockQuantity;
   if (product.status !== undefined) row.status = product.status;
   return row;
+};
+
+const getOwnedProduct = async (id, userId) => {
+  const result = await supabaseRest(
+    `vendor_products?select=*&id=eq.${id}&vendor_user_id=eq.${userId}&limit=1`,
+  );
+  if (!result.ok) throw new Error(`Unable to load the product (${result.status}).`);
+  return (await result.json())[0] || null;
+};
+
+const nextDisplayOrder = async (userId, collection) => {
+  const result = await supabaseRest(
+    `vendor_products?select=display_order&vendor_user_id=eq.${userId}&collection=eq.${encodeURIComponent(collection)}&order=display_order.desc&limit=1`,
+  );
+  if (!result.ok) throw new Error(`Unable to prepare the product order (${result.status}).`);
+  const current = (await result.json())[0]?.display_order;
+  return Number.isInteger(Number(current)) ? Number(current) + 1 : 1;
+};
+
+const assertFeaturedLimit = async (userId, productId) => {
+  const idFilter = productId ? `&id=neq.${productId}` : "";
+  const result = await supabaseRest(
+    `vendor_products?select=id&vendor_user_id=eq.${userId}&is_featured=eq.true${idFilter}&limit=${MAX_FEATURED_PRODUCTS}`,
+  );
+  if (!result.ok) throw new Error(`Unable to validate featured products (${result.status}).`);
+  if ((await result.json()).length >= MAX_FEATURED_PRODUCTS) {
+    throw new Error(`You can feature up to ${MAX_FEATURED_PRODUCTS} products.`);
+  }
 };
 
 module.exports = async function handler(request, response) {
@@ -244,7 +296,7 @@ module.exports = async function handler(request, response) {
 
     if (request.method === "GET") {
       const result = await supabaseRest(
-        `vendor_products?select=*&vendor_user_id=eq.${userId}&order=created_at.desc`,
+        `vendor_products?select=*&vendor_user_id=eq.${userId}&order=collection.asc,display_order.asc,created_at.desc`,
       );
       if (!result.ok) throw new Error(`Unable to load products (${result.status}).`);
       return json(response, 200, await result.json());
@@ -252,12 +304,21 @@ module.exports = async function handler(request, response) {
 
     if (request.method === "POST") {
       const product = normalizeProduct(request.body);
+      product.displayOrder = await nextDisplayOrder(userId, product.collection);
+      const row = toRow(product);
+      if (row.status === "active") {
+        const issue = publicationIssue(row);
+        if (issue) return json(response, 400, { error: issue });
+      }
+      if (row.is_featured) {
+        await assertFeaturedLimit(userId, null);
+      }
       const result = await supabaseRest("vendor_products", {
         method: "POST",
         headers: { Prefer: "return=representation" },
         body: JSON.stringify({
           vendor_user_id: access.user.id,
-          ...toRow(product),
+          ...row,
         }),
       });
       if (!result.ok) {
@@ -271,8 +332,46 @@ module.exports = async function handler(request, response) {
     if (request.method === "PATCH") {
       const id = Number(request.body?.id);
       if (!Number.isInteger(id) || id <= 0) return json(response, 400, { error: "Invalid product." });
+
+      if (request.body?.action === "move") {
+        const direction = Number(request.body.direction);
+        if (![-1, 1].includes(direction)) {
+          return json(response, 400, { error: "Select a valid direction." });
+        }
+        const result = await supabaseRest("rpc/reorder_vendor_product", {
+          method: "POST",
+          body: JSON.stringify({
+            p_vendor_user_id: access.user.id,
+            p_product_id: id,
+            p_direction: direction,
+          }),
+        });
+        if (!result.ok) {
+          console.error("Unable to reorder vendor product:", result.status, await result.text());
+          return json(response, 502, { error: "Unable to reorder the product." });
+        }
+        const moved = await result.json();
+        if (!moved) return json(response, 404, { error: "Product or destination not found." });
+        return json(response, 200, { moved: true });
+      }
+
+      const current = await getOwnedProduct(id, userId);
+      if (!current) return json(response, 404, { error: "Product not found." });
       const product = normalizeProduct(request.body, true);
       const row = { ...toRow(product), updated_at: new Date().toISOString() };
+      if (product.collection && product.collection !== current.collection && product.displayOrder === undefined) {
+        row.display_order = await nextDisplayOrder(userId, product.collection);
+      }
+      if (row.status === "draft") row.is_featured = false;
+
+      const candidate = { ...current, ...row };
+      if (candidate.status === "active") {
+        const issue = publicationIssue(candidate);
+        if (issue) return json(response, 400, { error: issue });
+      }
+      if (candidate.is_featured) {
+        await assertFeaturedLimit(userId, id);
+      }
       const result = await supabaseRest(
         `vendor_products?id=eq.${id}&vendor_user_id=eq.${userId}`,
         {
@@ -281,7 +380,10 @@ module.exports = async function handler(request, response) {
           body: JSON.stringify(row),
         },
       );
-      if (!result.ok) return json(response, 502, { error: "Unable to update the product." });
+      if (!result.ok) {
+        console.error("Unable to update vendor product:", result.status, await result.text());
+        return json(response, 502, { error: "Unable to update the product." });
+      }
       const rows = await result.json();
       if (!rows[0]) return json(response, 404, { error: "Product not found." });
       return json(response, 200, rows[0]);

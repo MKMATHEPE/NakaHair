@@ -5,7 +5,17 @@ export const collections = [
 ] as const;
 
 export type CollectionKey = typeof collections[number]["key"];
+export type VendorCollectionTab = "catalogue" | CollectionKey;
+
+export const vendorCollectionTabs = [
+  { key: "catalogue", label: "The Catalogue" },
+  ...collections.map((collection) => ({ key: collection.key, label: collection.eyebrow })),
+] as const;
 
 export function collectionByKey(key: string) {
   return collections.find((collection) => collection.key === key);
+}
+
+export function collectionLabel(key: string) {
+  return collectionByKey(key)?.eyebrow || key;
 }
