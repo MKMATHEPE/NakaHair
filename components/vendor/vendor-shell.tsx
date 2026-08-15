@@ -17,6 +17,7 @@ const links = [
 export function VendorShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { loading, user } = useSession();
+  if (pathname === "/vendor/login") return <>{children}</>;
   if (loading) return <main className="naka-dashboard-loading">Loading vendor portal…</main>;
   if (!user) return <main className="naka-access"><p className="naka-eyebrow">Vendor portal</p><h1>Vendor login required</h1><p>Use Vendor Login in the header to open your management dashboard.</p></main>;
   if (!user.isVendor) return <main className="naka-access"><p className="naka-eyebrow">Vendor portal</p><h1>Vendor access required</h1><p>This store has one approved vendor account.</p></main>;

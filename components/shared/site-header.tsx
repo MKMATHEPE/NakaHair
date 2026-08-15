@@ -21,9 +21,8 @@ export function SiteHeader() {
         <Link className="naka-logo" href="/vendor/products">NAKA Hair</Link>
         <nav aria-label="Vendor navigation">
           <Link href="/vendor/products">Vendor</Link>
-          {user ? <button className="naka-link-button" onClick={() => void logout()} type="button">Log out</button> : <button className="naka-link-button" onClick={() => setAuthMode("login")} type="button">Vendor login</button>}
+          {user ? <button className="naka-link-button" onClick={() => void logout()} type="button">Log out</button> : <Link href="/vendor/login">Vendor login</Link>}
         </nav>
-        {authMode ? <AuthDialog mode={authMode} onClose={() => setAuthMode(null)} /> : null}
       </header>
     );
   }

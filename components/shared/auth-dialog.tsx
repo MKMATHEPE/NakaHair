@@ -3,12 +3,10 @@
 import { useState, type FormEvent } from "react";
 
 import { useSession } from "@/components/providers/session-provider";
-import type { Portal } from "@/lib/client/types";
 
 export function AuthDialog({ mode, onClose }: { mode: "login" | "register"; onClose(): void }) {
   const { client, login, portal, register } = useSession();
   const [activeMode, setActiveMode] = useState(mode);
-  const [selectedPortal, setSelectedPortal] = useState<Portal>(portal);
   const [email, setEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -25,7 +23,7 @@ export function AuthDialog({ mode, onClose }: { mode: "login" | "register"; onCl
         await login({
           email: String(data.get("email") || "").trim().toLowerCase(),
           password: String(data.get("password") || ""),
-        }, selectedPortal);
+        }, portal);
         onClose();
       } else {
         const password = String(data.get("password") || "");
@@ -89,15 +87,6 @@ export function AuthDialog({ mode, onClose }: { mode: "login" | "register"; onCl
         {activeMode === "login" ? <p className="naka-auth-copy">Access your NAKA Hair account.</p> : null}
         {message ? <p className="naka-success">{message}</p> : (
           <form className="naka-form" onSubmit={submit}>
-            {activeMode === "login" ? (
-              <label className="naka-portal-select">
-                <span>Signing in as</span>
-                <select aria-label="Choose login portal" onChange={(event) => setSelectedPortal(event.target.value as Portal)} value={selectedPortal}>
-                  <option value="customer">Customer</option>
-                  <option value="vendor">Vendor</option>
-                </select>
-              </label>
-            ) : null}
             {activeMode === "register" ? (
               <div className="naka-form-grid">
                 <label>First name<input name="firstName" maxLength={120} required /></label>
@@ -114,7 +103,7 @@ export function AuthDialog({ mode, onClose }: { mode: "login" | "register"; onCl
             {error ? <p className="naka-error">{error}</p> : null}
             <button className="naka-button" disabled={busy} type="submit">{busy ? "Please wait…" : activeMode === "login" ? "Sign In" : "Create Account"}</button>
             <div className="naka-auth-links">
-              {activeMode === "login" ? <><button onClick={() => changeMode("register")} type="button">Create account</button><span aria-hidden="true">·</span><button disabled={busy} onClick={() => void resetPassword()} type="button">Forgot password?</button></> : <button onClick={() => changeMode("login")} type="button">Already have an account? Sign in</button>}
+              {activeMode === "login" ? <>{portal === "customer" ? <><button onClick={() => changeMode("register")} type="button">Create account</button><span aria-hidden="true">·</span></> : null}<button disabled={busy} onClick={() => void resetPassword()} type="button">Forgot password?</button></> : <button onClick={() => changeMode("login")} type="button">Already have an account? Sign in</button>}
             </div>
           </form>
         )}
