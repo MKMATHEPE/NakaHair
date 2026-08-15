@@ -7,7 +7,7 @@ import { useSession } from "@/components/providers/session-provider";
 import { collectionLabel, vendorCollectionTabs, type CollectionKey, type VendorCollectionTab } from "@/lib/client/collections";
 import type { ProductVariantPrice, VendorProduct } from "@/lib/client/types";
 import { formatMoney } from "@/lib/client/types";
-import { MAX_FEATURED_PRODUCTS, displayOrderSort, publicationIssue } from "@/lib/vendor-product-rules";
+import { MAX_FEATURED_PRODUCTS, catalogueSort, displayOrderSort, publicationIssue } from "@/lib/vendor-product-rules";
 
 import { ProductImage } from "../shared/product-image";
 import { useVendorProducts } from "./use-vendor-data";
@@ -202,7 +202,7 @@ export function VendorProductsPanel() {
 
   const visibleProducts = useMemo(() => products
     .filter((product) => selectedTab === "catalogue" || product.collection === selectedTab)
-    .sort(displayOrderSort), [products, selectedTab]);
+    .sort(selectedTab === "catalogue" ? catalogueSort : displayOrderSort), [products, selectedTab]);
 
   const featuredCount = products.filter((product) => product.is_featured).length;
   const selectedCollectionCover = selectedTab === "catalogue"
@@ -636,8 +636,11 @@ export function VendorProductsPanel() {
             <thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Show in store</th><th>Featured <small>{MAX_FEATURED_PRODUCTS} maximum</small></th><th>Order</th><th>Preview</th><th><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>{visibleProducts.map((product) => {
               const issue = publicationIssue(product);
-              const collectionProducts = products.filter((entry) => entry.collection === product.collection).sort(displayOrderSort);
-              const collectionIndex = collectionProducts.findIndex((entry) => entry.id === product.id);
+              const orderProducts = selectedTab === "catalogue"
+                ? products.filter((entry) => entry.is_featured === product.is_featured).sort(displayOrderSort)
+                : products.filter((entry) => entry.collection === product.collection).sort(displayOrderSort);
+              const orderIndex = orderProducts.findIndex((entry) => entry.id === product.id);
+              const displayPosition = visibleProducts.findIndex((entry) => entry.id === product.id) + 1;
               const actionPending = pendingAction === product.id;
               const featureBlocked = product.status !== "active" || Boolean(issue) || (!product.is_featured && featuredCount >= MAX_FEATURED_PRODUCTS);
               return <tr key={product.id}>
@@ -646,7 +649,7 @@ export function VendorProductsPanel() {
                 <td data-label="Stock">{product.stock_quantity}</td>
                 <td data-label="Show in store"><button aria-checked={product.status === "active"} aria-label={`${product.status === "active" ? "Hide" : "Show"} ${product.name} in store`} className={`naka-switch${product.status === "active" ? " active" : ""}`} disabled={actionPending || (product.status !== "active" && Boolean(issue))} onClick={() => void updateProduct(product, { status: product.status === "active" ? "draft" : "active" })} role="switch" type="button"><span aria-hidden="true" /><small>{product.status === "active" ? "Shown" : "Hidden"}</small></button></td>
                 <td data-label="Featured"><button aria-checked={product.is_featured} aria-label={`${product.is_featured ? "Remove" : "Add"} ${product.name} ${product.is_featured ? "from" : "to"} featured products`} className={`naka-switch${product.is_featured ? " active" : ""}`} disabled={actionPending || (!product.is_featured && featureBlocked)} onClick={() => void updateProduct(product, { isFeatured: !product.is_featured })} role="switch" type="button"><span aria-hidden="true" /><small>{product.is_featured ? "Featured" : "Not featured"}</small></button></td>
-                <td data-label="Order"><div className="naka-order-controls"><strong>{collectionIndex + 1}</strong><button aria-label={`Move ${product.name} up`} disabled={actionPending || collectionIndex <= 0} onClick={() => void updateProduct(product, { action: "move", direction: -1 })} type="button">↑</button><button aria-label={`Move ${product.name} down`} disabled={actionPending || collectionIndex >= collectionProducts.length - 1} onClick={() => void updateProduct(product, { action: "move", direction: 1 })} type="button">↓</button></div></td>
+                <td data-label="Order"><div className="naka-order-controls"><strong>{displayPosition}</strong><button aria-label={`Move ${product.name} up`} disabled={actionPending || orderIndex <= 0} onClick={() => void updateProduct(product, { action: "move", direction: -1, scope: selectedTab })} type="button">↑</button><button aria-label={`Move ${product.name} down`} disabled={actionPending || orderIndex >= orderProducts.length - 1} onClick={() => void updateProduct(product, { action: "move", direction: 1, scope: selectedTab })} type="button">↓</button></div></td>
                 <td data-label="Preview"><Link className="naka-preview-link" href="/vendor/preview">View</Link></td>
                 <td data-label="Actions"><div className="naka-inline-actions"><button className="naka-small-button" onClick={() => openEditor(product)} type="button">Edit</button><button className="naka-small-button" onClick={() => setDeleteTarget(product)} type="button">Delete</button></div></td>
               </tr>;

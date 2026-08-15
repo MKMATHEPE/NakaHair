@@ -338,7 +338,10 @@ module.exports = async function handler(request, response) {
         if (![-1, 1].includes(direction)) {
           return json(response, 400, { error: "Select a valid direction." });
         }
-        const result = await supabaseRest("rpc/reorder_vendor_product", {
+        const scope = request.body.scope === "catalogue" ? "catalogue" : "collection";
+        const result = await supabaseRest(scope === "catalogue"
+          ? "rpc/reorder_vendor_catalogue_product"
+          : "rpc/reorder_vendor_product", {
           method: "POST",
           body: JSON.stringify({
             p_vendor_user_id: access.user.id,
