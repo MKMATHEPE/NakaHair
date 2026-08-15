@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { collections } from "@/lib/client/collections";
 import type { Product } from "@/lib/client/types";
+import { productImage } from "@/lib/client/types";
 
+import { ProductImage } from "../shared/product-image";
 import { ProductCard } from "./product-card";
 import { ProductDialog } from "./product-dialog";
 
@@ -82,10 +84,18 @@ export function Storefront() {
         <div className="naka-product-grid">{visible.map((product) => <ProductCard key={product.id} onSelect={setSelected} product={product} />)}</div>
       </section>
 
-      {collections.map((collection) => {
-        const collectionProducts = products.filter((product) => product.collection === collection.key).slice(0, 4);
-        return <section className={`naka-collection naka-collection-${collection.key}`} id={collection.key} key={collection.key}><Link aria-label={`View ${collection.eyebrow}`} className="naka-collection-copy" href={`/collections/${collection.key}`}><p className="naka-eyebrow">{collection.eyebrow}</p><h2>{collection.title}</h2><p>{collection.copy}</p></Link><div className="naka-product-grid">{collectionProducts.map((product) => <ProductCard key={product.id} onSelect={setSelected} product={product} />)}</div></section>;
-      })}
+      <section className="naka-collection-showcase">
+        <div className="naka-collection-showcase-heading"><p className="naka-eyebrow">Shop by collection</p><span aria-hidden="true" /></div>
+        <div className="naka-collection-card-grid">
+          {collections.map((collection) => {
+            const featuredProduct = products.find((product) => product.collection === collection.key);
+            return <Link aria-label={`View ${collection.eyebrow}`} className={`naka-collection-card naka-collection-card-${collection.key}`} href={`/collections/${collection.key}`} id={collection.key} key={collection.key}>
+              <div className="naka-collection-card-image"><ProductImage alt={featuredProduct?.name || collection.eyebrow} src={featuredProduct ? productImage(featuredProduct) : undefined} /></div>
+              <div className="naka-collection-card-copy"><p className="naka-eyebrow">{collection.eyebrow}</p><h2>{collection.title}</h2><p>{collection.copy}</p><span>View collection →</span></div>
+            </Link>;
+          })}
+        </div>
+      </section>
 
       <section className="naka-story" id="about"><p className="naka-eyebrow">Our promise</p><h2>Hair that feels like you.</h2><p>We curate dependable styles with clear product information, thoughtful service, and options for every budget.</p></section>
       <section className="naka-service-grid" id="shipping">
