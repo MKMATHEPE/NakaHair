@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { useSession } from "@/components/providers/session-provider";
 import { collectionLabel, vendorCollectionTabs, type CollectionKey, type VendorCollectionTab } from "@/lib/client/collections";
@@ -51,6 +51,45 @@ const productTypeOptions = ["Wig", "Bundles", "Closure", "Frontal", "Ponytail", 
 
 function optionsWithExisting(options: string[], selected: string[]) {
   return [...new Set([...options, ...selected])];
+}
+
+function OptionDropdown({
+  ariaLabel,
+  onChange,
+  options,
+  placeholder,
+  value,
+}: {
+  ariaLabel: string;
+  onChange(value: string): void;
+  options: string[];
+  placeholder: string;
+  value: string;
+}) {
+  const dropdown = useRef<HTMLDetailsElement>(null);
+
+  return <details
+    className="naka-option-dropdown"
+    onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) dropdown.current?.removeAttribute("open");
+    }}
+    ref={dropdown}
+  >
+    <summary aria-label={ariaLabel} aria-haspopup="listbox"><span>{value || placeholder}</span><span aria-hidden="true">⌄</span></summary>
+    <div aria-label={`${ariaLabel} options`} className="naka-option-dropdown-menu" role="listbox">
+      {options.map((option) => <button
+        aria-selected={value === option}
+        className={value === option ? "active" : ""}
+        key={option}
+        onClick={() => {
+          onChange(option);
+          dropdown.current?.removeAttribute("open");
+        }}
+        role="option"
+        type="button"
+      >{option}</button>)}
+    </div>
+  </details>;
 }
 
 function stateFor(product: VendorProduct | null, collection: CollectionKey = "everyday"): EditorState {
@@ -431,8 +470,8 @@ export function VendorProductsPanel() {
                   onDrop={(event) => reorderVariant(event.dataTransfer.getData("text/plain"), variant.id)}
                 >
                   <span aria-hidden="true" className="naka-variant-drag" draggable onDragStart={(event) => event.dataTransfer.setData("text/plain", variant.id)}>⠿</span>
-                  <label data-label="Hair Origin"><span className="sr-only">Hair origin {index + 1}</span><select aria-label={`Hair origin ${index + 1}`} onChange={(event) => updateVariant(variant.id, "hairOrigin", event.target.value)} required value={variant.hairOrigin}><option disabled value="">Select origin</option>{optionsWithExisting(hairOriginOptions, editor.customOrigins).map((origin) => <option key={origin} value={origin}>{origin}</option>)}</select></label>
-                  <label data-label="Size"><span className="sr-only">Size {index + 1}</span><select aria-label={`Size ${index + 1}`} onChange={(event) => updateVariant(variant.id, "size", event.target.value)} required value={variant.size}><option disabled value="">Select size</option>{sizeOptions.map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
+                  <div className="naka-variant-option" data-label="Hair Origin"><OptionDropdown ariaLabel={`Hair origin ${index + 1}`} onChange={(value) => updateVariant(variant.id, "hairOrigin", value)} options={optionsWithExisting(hairOriginOptions, editor.customOrigins)} placeholder="Select origin" value={variant.hairOrigin} /></div>
+                  <div className="naka-variant-option" data-label="Size"><OptionDropdown ariaLabel={`Size ${index + 1}`} onChange={(value) => updateVariant(variant.id, "size", value)} options={sizeOptions} placeholder="Select size" value={variant.size} /></div>
                   <label data-label="Price (ZAR)"><span className="sr-only">Price {index + 1}</span><span className="naka-money-input"><b>R</b><input aria-label={`Price ${index + 1}`} min={0} onChange={(event) => updateVariant(variant.id, "price", event.target.value)} required step="0.01" type="number" value={variant.price} /></span></label>
                   <label data-label="Stock"><span className="sr-only">Stock {index + 1}</span><input aria-label={`Stock ${index + 1}`} min={0} onChange={(event) => updateVariant(variant.id, "stock", event.target.value)} required step={1} type="number" value={variant.stock} /></label>
                   <button aria-label={`Remove variant ${index + 1}`} className="naka-variant-remove" disabled={editor.variants.length === 1} onClick={() => removeVariant(variant.id)} type="button">×</button>
@@ -445,7 +484,7 @@ export function VendorProductsPanel() {
                 <h3>4. More Product Details</h3>
                 <div className="naka-form-grid">
                   <label>Hair type *<input defaultValue={editor.product?.hair_type} maxLength={100} name="hairType" required /></label>
-                  <label>Texture<select onChange={(event) => setEditor((current) => current ? { ...current, texture: event.target.value } : current)} value={editor.texture}>{optionsWithExisting(textureOptions, [editor.texture]).map((texture) => <option key={texture} value={texture}>{texture}</option>)}</select></label>
+                  <div className="naka-dropdown-field"><span>Texture</span><OptionDropdown ariaLabel="Texture" onChange={(value) => setEditor((current) => current ? { ...current, texture: value } : current)} options={optionsWithExisting(textureOptions, [editor.texture])} placeholder="Select texture" value={editor.texture} /></div>
                   <label>Colour<input defaultValue={editor.product?.details?.Colour || "Natural Black (1B)"} name="colour" /></label>
                   <label>Old price (ZAR)<span className="naka-money-input"><b>R</b><input defaultValue={editor.product?.old_price || ""} min={0} name="oldPrice" step="0.01" type="number" /></span></label>
                   <label>Tag<input defaultValue={editor.product?.tag || ""} maxLength={50} name="tag" /></label>
